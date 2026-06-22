@@ -9,6 +9,9 @@ import { generateBeatmap, chartToJSON } from './beatgen.js';
 
 const LEAD_IN = 3.0; // seconds of "3..2..1" count-in before the music
 
+const SETTINGS_KEY = 'chumstick.settings';
+const SETTINGS_DEFAULTS = { music: 0.9, sfx: 0.5, offsetMs: 0, noteSpeed: 1.8 };
+
 // Built-in charts (audio is loaded from assets/ if present, else metronome).
 const BUILTIN = [
   { title: 'Raise Your Weapon (Camo & Krooked remix)', sub: 'deadmau5 · DnB · 174', url: 'beatmaps/raise-your-weapon.json' },
@@ -29,8 +32,12 @@ class Game {
     this._generated = null;   // last auto-generated chart, for download
     this._demoDefl = { L: { v: { x: 0, y: 0 }, m: 0 }, R: { v: { x: 0, y: 0 }, m: 0 } };
 
+    this.settings = this._loadSettings();
+    this._applySettings();
+
     this._buildSongList();
     this._wireDom();
+    this._wireSettings();
     this._unlockAudioOnGesture();
     this.showScreen('title');
 
@@ -45,6 +52,8 @@ class Game {
     if (id) this._el(id).classList.remove('hidden');
     // HUD shows only during live gameplay (id === null).
     this._el('hud').classList.toggle('hidden', id !== null);
+    // floating pause control only during live, non-demo play
+    this._el('btn-pause-float').classList.toggle('hidden', id !== null || this.demo);
     this.focusIndex = 0;
     this._applyFocus();
   }
@@ -55,12 +64,16 @@ class Game {
 
   _focusables() {
     const scr = this._activeScreen();
-    return scr ? [...scr.querySelectorAll('button:not([disabled]), .song-btn')] : [];
+    return scr ? [...scr.querySelectorAll('button:not([disabled]), .song-btn, input[type=range]')] : [];
   }
 
   _applyFocus() {
     const items = this._focusables();
-    items.forEach((el, i) => el.classList.toggle('focused', i === this.focusIndex));
+    items.forEach((el, i) => {
+      // for a slider, glow its row instead of the bare input
+      const target = (el.tagName === 'INPUT' && el.type === 'range') ? (el.closest('.set-row') || el) : el;
+      target.classList.toggle('focused', i === this.focusIndex);
+    });
   }
 
   _moveFocus(d) {
@@ -92,9 +105,13 @@ class Game {
   _wireDom() {
     this._el('btn-start').addEventListener('click', () => this.showScreen('songselect'));
     this._el('btn-demo').addEventListener('click', () => this._watchDemo());
+    this._el('btn-settings').addEventListener('click', () => { this._syncSettingsUI(); this.showScreen('settings'); });
     this._el('btn-custom').addEventListener('click', () => this.showScreen('custom'));
     this._el('btn-songs-back').addEventListener('click', () => this.showScreen('title'));
     this._el('btn-custom-back').addEventListener('click', () => this.showScreen('songselect'));
+    this._el('btn-settings-back').addEventListener('click', () => this.showScreen('title'));
+    this._el('btn-settings-reset').addEventListener('click', () => this._resetSettings());
+    this._el('btn-pause-float').addEventListener('click', () => this._pause());
 
     this._el('btn-play-custom').addEventListener('click', () => this._playCustom(false));
     this._el('btn-autochart').addEventListener('click', () => this._playCustom(true));
@@ -116,6 +133,68 @@ class Game {
     };
     window.addEventListener('pointerdown', unlock);
     window.addEventListener('keydown', unlock);
+  }
+
+  // --- settings (persisted to localStorage) --------------------------------
+  _loadSettings() {
+    try {
+      const s = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}');
+      return { ...SETTINGS_DEFAULTS, ...s };
+    } catch { return { ...SETTINGS_DEFAULTS }; }
+  }
+
+  _saveSettings() {
+    try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(this.settings)); } catch { /* private mode */ }
+  }
+
+  /** Push the current settings into the live engine (volumes apply immediately). */
+  _applySettings() {
+    this.audio.setMusicVolume(this.settings.music);
+    this.audio.setSfxVolume(this.settings.sfx);
+  }
+
+  /** Reflect the current settings onto the slider widgets + value labels. */
+  _syncSettingsUI() {
+    const s = this.settings;
+    this._el('set-music').value = Math.round(s.music * 100);
+    this._el('set-sfx').value = Math.round(s.sfx * 100);
+    this._el('set-offset').value = s.offsetMs;
+    this._el('set-speed').value = Math.round(s.noteSpeed * 100);
+    this._el('set-music-val').textContent = Math.round(s.music * 100) + '%';
+    this._el('set-sfx-val').textContent = Math.round(s.sfx * 100) + '%';
+    this._el('set-offset-val').textContent = s.offsetMs + ' ms';
+    this._el('set-speed-val').textContent = s.noteSpeed.toFixed(1) + ' s';
+  }
+
+  _wireSettings() {
+    const onInput = (id, fn) => this._el(id).addEventListener('input', (e) => {
+      fn(Number(e.target.value));
+      this._applySettings();
+      this._saveSettings();
+      this._syncSettingsUI();
+    });
+    onInput('set-music', (v) => { this.settings.music = v / 100; });
+    onInput('set-sfx', (v) => { this.settings.sfx = v / 100; });
+    onInput('set-offset', (v) => { this.settings.offsetMs = v; });
+    onInput('set-speed', (v) => { this.settings.noteSpeed = v / 100; });
+  }
+
+  _resetSettings() {
+    this.settings = { ...SETTINGS_DEFAULTS };
+    this._applySettings();
+    this._saveSettings();
+    this._syncSettingsUI();
+  }
+
+  /** Adjust the focused slider by one step in `dir` (±1) — for D-pad / arrow control. */
+  _adjustFocusedRange(dir) {
+    const items = this._focusables();
+    const el = items[this.focusIndex];
+    if (!el || el.tagName !== 'INPUT' || el.type !== 'range') return false;
+    const step = Number(el.step) || 1;
+    el.value = Math.max(Number(el.min), Math.min(Number(el.max), Number(el.value) + dir * step));
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+    return true;
   }
 
   // --- chart loading / start ----------------------------------------------
@@ -204,6 +283,7 @@ class Game {
   _startChart() {
     if (!this.currentRaw) return;
     this.chart = normalizeChart(this.currentRaw);
+    this._applyChartSettings(this.chart);
     this.scorer.reset();
     this.renderer.effects = [];
     this.renderer.flickFx = [];
@@ -220,6 +300,13 @@ class Game {
       : '♪ synth groove — drop assets/' + (this.chart.meta.audio || 'your-track.mp3') + ' for the real track';
     this.state = 'playing';
     this.showScreen(null);
+  }
+
+  /** Apply player settings that affect a chart at start: audio offset + note approach speed. */
+  _applyChartSettings(chart) {
+    const off = (this.settings.offsetMs || 0) / 1000;   // +ms => notes later (you were hitting early)
+    if (off) { for (const n of chart.notes) n.time += off; chart.duration += off; }
+    chart.meta.approachTime = this.settings.noteSpeed;
   }
 
   // --- pause / quit / finish ----------------------------------------------
@@ -321,19 +408,22 @@ class Game {
     for (const it of this.input.takeMenu()) {
       if (this.state === 'playing') {
         if (this.demo) {
-          if (it === 'pause' || it === 'back' || it === 'confirm') this._exitDemo();
-        } else if (it === 'pause' || it === 'back') {
-          this._pause();
+          if (it === 'pause' || it === 'back' || it === 'confirm' || it === 'start') this._exitDemo();
+        } else if (it === 'pause' || it === 'back' || it === 'start') {
+          this._pause();   // Options / ◯ / Esc all pause
         }
         continue;
       }
       if (this.state === 'paused') {
-        if (it === 'pause' || it === 'back') { this._resume(); continue; }
+        // Options / ◯ / Esc resume; ↑↓ + ✕ still navigate the pause menu (Resume/Restart/Quit)
+        if (it === 'pause' || it === 'back' || it === 'start') { this._resume(); continue; }
       }
-      // menu navigation
-      if (it === 'up' || it === 'left') this._moveFocus(-1);
-      else if (it === 'down' || it === 'right') this._moveFocus(1);
-      else if (it === 'confirm') this._activateFocus();
+      // menu navigation (←/→ adjust a focused slider; otherwise they move focus)
+      if (it === 'up') this._moveFocus(-1);
+      else if (it === 'down') this._moveFocus(1);
+      else if (it === 'left') { if (!this._adjustFocusedRange(-1)) this._moveFocus(-1); }
+      else if (it === 'right') { if (!this._adjustFocusedRange(1)) this._moveFocus(1); }
+      else if (it === 'confirm' || it === 'start') this._activateFocus();
       else if (it === 'back') {
         const scr = this._activeScreen();
         const back = scr && scr.querySelector('[data-back]');

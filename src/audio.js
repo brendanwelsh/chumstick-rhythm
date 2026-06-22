@@ -21,10 +21,15 @@ export class AudioEngine {
     // "glitch" the whole mix (stutter/duck) — Guitar-Hero style. SFX/glitch bursts bypass it.
     this.musicBus = this.ctx.createGain();
     this.musicBus.gain.value = 1.0;
-    this.musicBus.connect(this.master);
+    // User music-volume lives DOWNSTREAM of musicBus so the glitch (which snaps musicBus back to
+    // 1.0) never overrides the player's setting.   musicBus -> musicVol -> master.
+    this.musicVol = this.ctx.createGain();
+    this.musicVol.gain.value = 0.9;
+    this.musicBus.connect(this.musicVol);
+    this.musicVol.connect(this.master);
 
     this.sfxGain = this.ctx.createGain();
-    this.sfxGain.gain.value = 0.4;
+    this.sfxGain.gain.value = 0.5;
     this.sfxGain.connect(this.master);
 
     // Groove bus (the synthesized backing when there's no audio file) -> music bus.
@@ -46,6 +51,12 @@ export class AudioEngine {
   async resume() {
     if (this.ctx.state === 'suspended') await this.ctx.resume();
   }
+
+  // --- user volume (0..1) -------------------------------------------------
+  setMusicVolume(v) { this.musicVol.gain.value = Math.max(0, Math.min(1, v)); }
+  setSfxVolume(v) { this.sfxGain.gain.value = Math.max(0, Math.min(1, v)); }
+  get musicVolume() { return this.musicVol.gain.value; }
+  get sfxVolume() { return this.sfxGain.gain.value; }
 
   get hasAudio() { return !!this.buffer; }
 

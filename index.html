@@ -33,6 +33,9 @@
     <div id="audio-src"></div>
   </div>
 
+  <!-- Floating pause control (mouse); controller uses Options, keyboard uses Esc -->
+  <button id="btn-pause-float" class="hidden" title="Pause (Options / Esc)">⏸</button>
+
   <div id="error" class="hidden"></div>
 
   <!-- ============ TITLE ============ -->
@@ -55,6 +58,7 @@
     <div class="row ghost-row">
       <button id="btn-start">browse songs</button>
       <button id="btn-demo">▶ watch demo</button>
+      <button id="btn-settings">⚙ settings</button>
     </div>
   </section>
 
@@ -87,6 +91,38 @@
       <div class="row">
         <button id="btn-download" class="hidden">⬇ Download generated chart</button>
         <button id="btn-custom-back" data-back>← Back</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ SETTINGS ============ -->
+  <section id="settings" class="screen hidden">
+    <h2>SETTINGS</h2>
+    <div class="settings-form">
+      <div class="set-row">
+        <label for="set-music">Music volume</label>
+        <input id="set-music" type="range" min="0" max="100" step="1" value="90" />
+        <span class="set-val" id="set-music-val">90%</span>
+      </div>
+      <div class="set-row">
+        <label for="set-sfx">SFX volume</label>
+        <input id="set-sfx" type="range" min="0" max="100" step="1" value="50" />
+        <span class="set-val" id="set-sfx-val">50%</span>
+      </div>
+      <div class="set-row">
+        <label for="set-offset">Audio offset <small>(notes early ↔ late)</small></label>
+        <input id="set-offset" type="range" min="-150" max="150" step="5" value="0" />
+        <span class="set-val" id="set-offset-val">0 ms</span>
+      </div>
+      <div class="set-row">
+        <label for="set-speed">Note speed <small>(approach time)</small></label>
+        <input id="set-speed" type="range" min="100" max="320" step="10" value="180" />
+        <span class="set-val" id="set-speed-val">1.8 s</span>
+      </div>
+      <p class="hint">Use the <b>D-pad ↑↓</b> to pick a setting and <b>←→</b> to adjust (or drag with the mouse). Saved automatically.</p>
+      <div class="row">
+        <button id="btn-settings-reset">↺ Reset defaults</button>
+        <button id="btn-settings-back" data-back>← Back</button>
       </div>
     </div>
   </section>

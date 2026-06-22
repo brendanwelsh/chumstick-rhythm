@@ -12,7 +12,7 @@ import { dirVector, angleVec, wrapPi, noteTargetAngle, MODS } from './chart.js';
 import { TAP_ARC } from './scoring.js';
 
 const COL = {
-  L: '#36d6f5', R: '#2b9fda',                 // cyan + Grooveshark blue
+  L: '#2fe0ff', R: '#ff9f43',                 // L = cyan, R = warm orange — clearly DISTINCT sides
   sky0: '#081a33', sky1: '#13539e', sky2: '#39a7e0',
   shark: '#0b2747',
   body: '#0c1f38', bodyHi: '#1f426a', bodyLo: '#06101f', chrome: '#5f8ec2',
@@ -36,6 +36,11 @@ export class Renderer {
     this._logoReady = false;
     this.logo.onload = () => { this._logoReady = true; };
     this.logo.src = 'brand/chum-logo.png';
+    // real shark sprite (chumthewaters.com) — falls back to the vector shark if it can't load
+    this.sharkImg = new Image();
+    this._sharkReady = false;
+    this.sharkImg.onload = () => { this._sharkReady = true; };
+    this.sharkImg.src = 'brand/shark.png';
     this.resize();
     window.addEventListener('resize', () => this.resize());
   }
@@ -60,7 +65,9 @@ export class Renderer {
       L: { x: cx - gap * 0.5 - r, y: cy, r },
       R: { x: cx + gap * 0.5 + r, y: cy, r },
     };
-    this.console = { x: cx - gap * 0.5, y: cy - r * 0.85, w: gap, h: r * 1.7 };
+    // smaller centre console with clear margin from the speakers (no overlap)
+    const cw = gap * 0.66, ch = r * 0.96;
+    this.console = { x: cx - cw / 2, y: cy - ch / 2, w: cw, h: ch };
     this.body = { x: this.speakers.L.x - r * 1.25, y: cy - r * 1.4, w: (this.speakers.R.x - this.speakers.L.x) + r * 2.5, h: r * 2.8 };
   }
 
@@ -85,16 +92,23 @@ export class Renderer {
     this._logoMark();
     this._stereoBody();
 
+    // base layer: speaker bodies + the player's thumbstick/trail
     for (const ring of ['L', 'R']) {
       this._soundWaves(ring);
       this._speaker(ring);
-      if (chart) this._notes(ring, chart, songTime);
       this._trail(ring, input);
       this._thumbstick(ring, input);
+    }
+
+    // the middle console (an info box) sits UNDER the notes — notes/FX are always the top layer
+    this._console(scorer, chart);
+
+    // TOP layer: notes + hit FX, so they can never be hidden behind the console or stereo body
+    for (const ring of ['L', 'R']) {
+      if (chart) this._notes(ring, chart, songTime);
       this._effects(ring, songTime);
     }
 
-    this._console(scorer, chart);
     if (chart && songTime < 0) this._countIn(songTime);
     if (state.demo) this._demoBadge();
     ctx.restore();
@@ -124,6 +138,31 @@ export class Renderer {
   }
 
   _shark(t) {
+    if (this._sharkReady) return this._sharkImage(t);
+    return this._sharkVector(t);
+  }
+
+  // Real shark sprite (chumthewaters.com) swimming left -> right — the PNG faces right — with a
+  // gentle bob + tilt. Two passes: a faint far shark and a bigger near one. Drawn behind the stereo.
+  _sharkImage(t) {
+    const { ctx, w, h } = this;
+    const img = this.sharkImg;
+    const ar = (img.naturalHeight && img.naturalWidth) ? img.naturalHeight / img.naturalWidth : 0.322;
+    const swim = (W, speed, yBase, alpha) => {
+      const H = W * ar;
+      const period = w + W * 2 + 240;
+      const x = ((t * speed) % period) - (W + 160);
+      const y = yBase + Math.sin(t * 0.6 + speed) * h * 0.02;
+      ctx.save(); ctx.globalAlpha = alpha;
+      ctx.translate(x + W / 2, y + H / 2); ctx.rotate(Math.sin(t * 0.6 + speed) * 0.05);
+      ctx.drawImage(img, -W / 2, -H / 2, W, H);
+      ctx.restore(); ctx.globalAlpha = 1;
+    };
+    swim(w * 0.14, 26, h * 0.15, 0.22);   // far / small / faint
+    swim(w * 0.28, 60, h * 0.30, 0.55);   // near / big
+  }
+
+  _sharkVector(t) {
     const { ctx, w, h } = this;
     const draw = (W, speed, yBase, alpha) => {
       const H = W * 0.34;
@@ -407,28 +446,23 @@ export class Renderer {
     const { ctx } = this;
     const d = this.console;
     const sc = scorer || { score: 0, combo: 0, accuracy: 1 };
-    this._roundRect(d.x, d.y, d.w, d.h, 10);
+    const cxm = d.x + d.w / 2;
+    this._roundRect(d.x, d.y, d.w, d.h, 9);
     const g = ctx.createLinearGradient(0, d.y, 0, d.y + d.h);
-    g.addColorStop(0, '#0a1422'); g.addColorStop(1, '#04080f');
+    g.addColorStop(0, 'rgba(10,20,34,0.82)'); g.addColorStop(1, 'rgba(4,8,15,0.82)');
     ctx.fillStyle = g; ctx.fill();
-    ctx.strokeStyle = 'rgba(95,142,194,0.45)'; ctx.lineWidth = 2; ctx.stroke();
+    ctx.strokeStyle = 'rgba(95,142,194,0.4)'; ctx.lineWidth = 1.5; ctx.stroke();
+
+    // tiny L|R accent so the box reads which side is which colour
+    ctx.fillStyle = this._alpha(COL.L, 0.7); ctx.fillRect(d.x + d.w * 0.16, d.y + d.h * 0.16, d.w * 0.1, 3);
+    ctx.fillStyle = this._alpha(COL.R, 0.7); ctx.fillRect(d.x + d.w * 0.74, d.y + d.h * 0.16, d.w * 0.1, 3);
 
     ctx.textAlign = 'center';
-    ctx.fillStyle = COL.dim; ctx.font = `600 ${d.h * 0.1}px system-ui`; ctx.textBaseline = 'top';
-    ctx.fillText((chart && chart.meta.title) || 'insert a track', d.x + d.w / 2, d.y + d.h * 0.08, d.w * 0.92);
+    ctx.fillStyle = COL.text; ctx.font = `900 ${d.h * 0.4}px system-ui`; ctx.textBaseline = 'middle';
+    ctx.fillText(sc.combo > 0 ? `${sc.combo}x` : '♪', cxm, d.y + d.h * 0.44);
 
-    ctx.fillStyle = COL.text; ctx.font = `900 ${d.h * 0.34}px system-ui`; ctx.textBaseline = 'middle';
-    ctx.fillText(sc.combo > 0 ? `${sc.combo}x` : '♪', d.x + d.w / 2, d.y + d.h * 0.46);
-
-    const bars = 9, bw = d.w * 0.055, gap = (d.w * 0.8 - bars * bw) / (bars - 1), x0 = d.x + d.w * 0.1;
-    for (let i = 0; i < bars; i++) {
-      const lvl = Math.max(0.08, (0.5 + 0.5 * Math.sin(this._t * 8 + i)) * (0.4 + this.pulse));
-      const bh = d.h * 0.16 * lvl, x = x0 + i * (bw + gap), yb = d.y + d.h * 0.7;
-      ctx.fillStyle = this._alpha(i < bars / 2 ? COL.L : COL.R, 0.4 + lvl * 0.5);
-      ctx.fillRect(x, yb - bh, bw, bh);
-    }
-    ctx.fillStyle = COL.dim; ctx.font = `700 ${d.h * 0.1}px ui-monospace, monospace`; ctx.textBaseline = 'bottom';
-    ctx.fillText(`${String(sc.score).padStart(7, '0')}  ${(sc.accuracy * 100).toFixed(1)}%`, d.x + d.w / 2, d.y + d.h * 0.97);
+    ctx.fillStyle = COL.dim; ctx.font = `700 ${d.h * 0.13}px ui-monospace, monospace`; ctx.textBaseline = 'bottom';
+    ctx.fillText(`${String(sc.score).padStart(7, '0')}  ${(sc.accuracy * 100).toFixed(1)}%`, cxm, d.y + d.h * 0.92);
   }
 
   _countIn(songTime) {

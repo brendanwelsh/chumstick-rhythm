@@ -104,7 +104,7 @@ export class GamepadInput {
         edges[i] = now && !this._prevButtons[i];
         this._prevButtons[i] = now;
       }
-      if (edges[9]) { this.menu.push('confirm'); this._just.options = true; }
+      if (edges[9]) { this.menu.push('start'); this._just.options = true; }  // Options = start/pause toggle
       if (edges[0]) { this.menu.push('confirm'); this._just.cross = true; }
       if (edges[1]) { this.menu.push('back'); this._just.circle = true; }
       if (edges[12]) this.menu.push('up');
