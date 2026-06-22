@@ -25,6 +25,7 @@ export class Renderer {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d');
     this.effects = [];   // {kind, ring, dir, judgement, t0, dur}
+    this.flickFx = [];   // {ring, dir, mag, t0} — a streak drawn for EVERY flick (hit or not)
     this.pulse = 0;      // 0..1 boombox "thump", bumped on hits, decays each frame
     this.resize();
     window.addEventListener('resize', () => this.resize());
@@ -58,6 +59,11 @@ export class Renderer {
     if (judgement !== 'miss') this.pulse = 1;
   }
 
+  /** Visual for the gesture itself — fires on every flick, whether or not it hit a note. */
+  addFlick({ ring, dir, mag = 1, t }) {
+    this.flickFx.push({ ring, dir, mag, t0: t, dur: 0.28 });
+  }
+
   // --- main draw ----------------------------------------------------------
   drawGame(state) {
     const { ctx } = this;
@@ -73,11 +79,52 @@ export class Renderer {
       this._vuMeter(ring, songTime);
     }
 
+    this._flicks(songTime);
     this._effects(songTime);
     this._deck(scorer, songTime);
     this._countIn(songTime);
+    if (state.demo) this._demoBadge();
 
     this.pulse *= 0.90; // decay the thump
+  }
+
+  _flicks(songTime) {
+    const { ctx } = this;
+    this.flickFx = this.flickFx.filter((f) => songTime - f.t0 < f.dur);
+    for (const f of this.flickFx) {
+      const sp = this.speakers[f.ring];
+      const v = dirVector(f.dir);
+      const age = (songTime - f.t0) / f.dur; // 0..1
+      const c = ringColor(f.ring);
+      const reach = sp.ring * (1.05 + age * 0.5) * Math.min(1, f.mag);
+      const x = sp.x + v.x * reach, y = sp.y + v.y * reach;
+      const a = Math.atan2(v.y, v.x);
+      ctx.save();
+      ctx.globalAlpha = 1 - age;
+      ctx.shadowColor = c; ctx.shadowBlur = 18;
+      // streak from center outward in the flicked direction
+      ctx.strokeStyle = c; ctx.lineCap = 'round';
+      ctx.lineWidth = sp.R * 0.10 * (1 - age * 0.5);
+      ctx.beginPath(); ctx.moveTo(sp.x, sp.y); ctx.lineTo(x, y); ctx.stroke();
+      // arrowhead
+      ctx.translate(x, y); ctx.rotate(a);
+      const h = sp.R * 0.16;
+      ctx.fillStyle = c;
+      ctx.beginPath(); ctx.moveTo(h, 0); ctx.lineTo(-h * 0.5, -h * 0.7); ctx.lineTo(-h * 0.5, h * 0.7);
+      ctx.closePath(); ctx.fill();
+      ctx.restore();
+    }
+  }
+
+  _demoBadge() {
+    const { ctx, w, h } = this;
+    ctx.save();
+    ctx.globalAlpha = 0.85;
+    ctx.fillStyle = COL.text;
+    ctx.font = `800 ${Math.max(13, h * 0.022)}px system-ui, sans-serif`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    ctx.fillText('▶ DEMO · auto-play — press Back / Esc to exit', w * 0.5, h * 0.035);
+    ctx.restore();
   }
 
   _background(t) {

@@ -4,7 +4,7 @@ import { AudioEngine } from './audio.js';
 import { GamepadInput } from './input.js';
 import { Renderer } from './render.js';
 import { Scorer } from './scoring.js';
-import { normalizeChart } from './chart.js';
+import { normalizeChart, dirVector } from './chart.js';
 import { generateBeatmap, chartToJSON } from './beatgen.js';
 
 const LEAD_IN = 3.0; // seconds of "3..2..1" count-in before the music
@@ -22,10 +22,12 @@ class Game {
     this.scorer = new Scorer();
 
     this.state = 'title';
+    this.demo = false;        // attract/auto-play mode
     this.currentRaw = null;   // un-normalized chart, re-normalized on each (re)start
     this.chart = null;
     this.focusIndex = 0;
     this._generated = null;   // last auto-generated chart, for download
+    this._demoDefl = { L: { v: { x: 0, y: 0 }, m: 0 }, R: { v: { x: 0, y: 0 }, m: 0 } };
 
     this._buildSongList();
     this._wireDom();
@@ -87,6 +89,7 @@ class Game {
 
   _wireDom() {
     this._el('btn-start').addEventListener('click', () => this.showScreen('songselect'));
+    this._el('btn-demo').addEventListener('click', () => this._watchDemo());
     this._el('btn-custom').addEventListener('click', () => this.showScreen('custom'));
     this._el('btn-songs-back').addEventListener('click', () => this.showScreen('title'));
     this._el('btn-custom-back').addEventListener('click', () => this.showScreen('songselect'));
@@ -110,19 +113,44 @@ class Game {
   }
 
   // --- chart loading / start ----------------------------------------------
+  async _loadUrlRaw(url) {
+    const raw = await (await fetch(url)).json();
+    this.currentRaw = raw;
+    this.audio.clearBuffer();
+    if (raw.meta && raw.meta.audio) {
+      const ok = await this.audio.tryLoadUrl('assets/' + raw.meta.audio);
+      if (!ok) console.info(`No audio at assets/${raw.meta.audio} — using metronome.`);
+    }
+  }
+
   async _startUrlChart(url) {
     try {
-      const raw = await (await fetch(url)).json();
-      this.currentRaw = raw;
-      this.audio.clearBuffer();
-      if (raw.meta && raw.meta.audio) {
-        const ok = await this.audio.tryLoadUrl('assets/' + raw.meta.audio);
-        if (!ok) console.info(`No audio at assets/${raw.meta.audio} — using metronome.`);
-      }
+      this.demo = false;
+      await this._loadUrlRaw(url);
       this._startChart();
     } catch (e) {
       alert('Could not load chart: ' + e.message);
     }
+  }
+
+  /** Attract mode: load the base chart and let the game play itself. */
+  async _watchDemo() {
+    try {
+      this.demo = true;
+      await this._loadUrlRaw(BUILTIN[0].url);
+      this._startChart();
+    } catch (e) {
+      this.demo = false;
+      alert('Could not start demo: ' + e.message);
+    }
+  }
+
+  _exitDemo() {
+    this.demo = false;
+    this.audio.stop();
+    this.audio.ctx.resume();
+    this.state = 'title';
+    this.showScreen('title');
   }
 
   async _playCustom(autochart) {
@@ -131,6 +159,7 @@ class Game {
     const status = this._el('custom-status');
     if (!audioFile) { status.textContent = 'Pick an audio file first.'; return; }
 
+    this.demo = false;
     try {
       status.textContent = 'Decoding audio…';
       await this.audio.resume();
@@ -171,6 +200,7 @@ class Game {
     this.chart = normalizeChart(this.currentRaw);
     this.scorer.reset();
     this.renderer.effects = [];
+    this.renderer.flickFx = [];
     this.renderer.pulse = 0;
     this._ended = false;
     this.audio.stop();
@@ -218,11 +248,33 @@ class Game {
     this.showScreen('results');
   }
 
+  // --- demo / attract auto-play -------------------------------------------
+  _demoAutoplay(songTime) {
+    // decay the faux stick deflection each frame
+    this._demoDefl.L.m *= 0.80;
+    this._demoDefl.R.m *= 0.80;
+    // fire a perfect flick for each note exactly as its time arrives
+    for (const n of this.chart.notes) {
+      if (!n.judged && n.time <= songTime && n.time > songTime - 0.13) {
+        this.input.flicks.push({ ring: n.ring, dir: n.dir, mods: n.mod ? [n.mod] : [], mag: 1, t: n.time });
+        this._demoDefl[n.ring] = { v: dirVector(n.dir), m: 0.95 };
+      }
+    }
+    // drive the live stick dots so the sticks visibly "flick" out and snap back
+    const dot = (d) => ({ x: d.v.x * d.m, y: d.v.y * d.m, mag: d.m });
+    this.input.left = dot(this._demoDefl.L);
+    this.input.right = dot(this._demoDefl.R);
+  }
+
   // --- input intents -------------------------------------------------------
   _handleIntents() {
     for (const it of this.input.takeMenu()) {
       if (this.state === 'playing') {
-        if (it === 'pause' || it === 'back') this._pause();
+        if (this.demo) {
+          if (it === 'pause' || it === 'back' || it === 'confirm') this._exitDemo();
+        } else if (it === 'pause' || it === 'back') {
+          this._pause();
+        }
         continue;
       }
       if (this.state === 'paused') {
@@ -255,8 +307,10 @@ class Game {
 
     if (this.state === 'playing' || this.state === 'paused') {
       if (this.state === 'playing') {
-        // resolve flicks
+        if (this.demo) this._demoAutoplay(songTime);
+        // resolve flicks (every flick gets a visual streak, hit or not)
         for (const f of this.input.takeFlicks()) {
+          this.renderer.addFlick(f);
           this.scorer.judgeFlick(f, this.chart.notes, songTime);
         }
         this.scorer.checkMisses(this.chart.notes, songTime);
@@ -264,9 +318,12 @@ class Game {
           this.renderer.addEffect(ev);
           this.audio.hitSound(ev.judgement);
         }
-        if (!this._ended && songTime > this.chart.duration) { this._ended = true; this._finish(); }
+        if (songTime > this.chart.duration) {
+          if (this.demo) this._startChart();                 // loop the attract demo
+          else if (!this._ended) { this._ended = true; this._finish(); }
+        }
       }
-      this.renderer.drawGame({ chart: this.chart, songTime, scorer: this.scorer, input: this.input });
+      this.renderer.drawGame({ chart: this.chart, songTime, scorer: this.scorer, input: this.input, demo: this.demo });
     } else {
       this.input.takeFlicks(); // drain so flicks don't queue up in menus
     }

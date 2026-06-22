@@ -33,6 +33,20 @@ Then open **http://localhost:8000** and plug in / pair a DualSense.
 2. Pick a song.
 3. Flick to the beat.
 
+**Just want to see it move?** Hit **▶ Watch demo** on the title screen — the game auto-plays
+the base track (perfect flicks, full feedback) as an attract loop. Back/Esc exits.
+
+**Play it from another device** (couch, phone, second PC): serve it bound to all interfaces and
+open it over your LAN or Tailscale:
+
+```bash
+python -m http.server 8000 --bind 0.0.0.0
+```
+- Same network: `http://<this-PC's-LAN-IP>:8000`
+- Over Tailscale: bring it up first (`tailscale up`), then `http://<machine-name>:8000`.
+
+(You may need to allow Python through Windows Firewall the first time for off-box access.)
+
 ### Controls
 | Input | Action |
 |---|---|
