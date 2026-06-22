@@ -1,8 +1,9 @@
-# 🕹️ Dualstick Rhythm
+# 📻 STEREO FLIX
 
-A **dual-analog-stick rhythm game** for the DualSense / DualShock 5. Two rings, two sticks —
-**flick** the left and right sticks in the required direction, in time with the music. Think
-*Beat Saber × osu! × DDR*, but the instrument is the **sticks themselves**.
+A **dual-analog-stick rhythm game** for the DualSense / DualShock 5, themed as a **boombox**:
+the two rings are the **left and right speakers** (cyan L, magenta R). **Flick** the matching
+stick in the required direction, in time with the music. Think *Beat Saber × osu! × DDR*, but
+the instrument is the **sticks themselves**.
 
 > Why it's new: flick-stick aiming, directional rhythm (DDR), and two-handed directional hits
 > (Beat Saber) all exist — but **nobody has made a rhythm game whose core input is flicking two

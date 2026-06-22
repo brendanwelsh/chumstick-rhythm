@@ -1,9 +1,14 @@
-# DESIGN.md — Dualstick Rhythm
+# DESIGN.md — STEREO FLIX
 
 > A rhythm game you play by **flicking the two analog sticks** of a DualSense / DualShock
 > controller in time with the music. Left stick drives the **left ring**, right stick drives
 > the **right ring**. Notes approach each ring; you flick the matching stick in the required
 > direction on the beat. Modifier buttons add variation.
+>
+> **Theme: a boombox.** The two rings are the boombox's **left and right speakers** (cyan L,
+> magenta R). The HUD sits in the center like a **cassette deck** — combo, score, accuracy, and
+> two reels that spin faster as your combo climbs; VU meters flank the speakers and bounce on
+> hits. Retro neon over a dark stage.
 
 ---
 
@@ -18,6 +23,7 @@ Quick survey of adjacent games/tech, and what each one contributes to the idea.
 | **Beat Saber** | Slash blocks in an arrow direction with two hands. | **Two independent hands**, each with its own colour; *direction matters*, not just timing; the satisfying "follow-through" of a directional gesture. |
 | **Thumper** | "Rhythm violence" — one lane, hold/turn on beats, brutal flow. | Aesthetic intensity; tight single-input flow; juice/feedback on every hit. |
 | **Sayonara Wild Hearts** | Score-attack rhythm-action set to a pop album. | Whole-album choreography; style over twitch; gorgeous feedback. |
+| **Spin Rhythm XD** | A **single rotary wheel** (one analog stick / DJ dial / mouse) you spin to colour-match falling notes; tap `X` for bars, jog for spinners, and **flick/wiggle the stick** for "scratch" notes. | *The closest existing relative* — it proves analog-stick rhythm feels great and that **stick flicks** read as note hits. But it's **one** rotational input doing **colour-matching**; flicking is a special-case note, not the core. Our game is **two independent sticks** where **8-directional flicking is the entire instrument** — no wheel, no colour-match. |
 | **Flick Stick** (Jibb Smart, 2018 — JoyShockMapper / Steam Input) | Push the stick toward a heading and the camera *snaps* there; rotate to turn. Used in CS, Fortnite, Deathloop. | Proves players can **flick a stick to a precise direction fast and accurately** — exactly the motor skill this game is built on. But it's a *shooter aiming* tool, not a rhythm mechanic. |
 | **Twin-stick shooters / Katamari** | Both sticks used simultaneously for movement/aim. | Evidence that simultaneous two-stick coordination is a learnable, fun skill. |
 

@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>STEREO FLIX — dual-stick rhythm</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <!-- Gameplay canvas (boombox + notes + HUD drawn here) -->
+  <canvas id="stage"></canvas>
+
+  <!-- ============ TITLE ============ -->
+  <section id="title" class="screen">
+    <div class="boombox">
+      <div class="handle"></div>
+      <div class="bb-body">
+        <div class="speaker left"><span>L</span></div>
+        <div class="bb-deck">
+          <h1 class="logo">STEREO<br><span>FLIX</span></h1>
+          <p class="tagline">two sticks · one beat</p>
+        </div>
+        <div class="speaker right"><span>R</span></div>
+      </div>
+      <div class="bb-controls"><i></i><i></i><i></i><i></i></div>
+    </div>
+
+    <button id="btn-start" class="big">▸ PRESS START</button>
+    <p id="title-status" class="status">…</p>
+    <p class="hint">
+      Flick the <b class="l">left stick</b> for the left speaker, the <b class="r">right stick</b> for the right.
+      Hit the required direction on the beat. Hold <b>L1/R1</b> &amp; face buttons for modifier notes.<br>
+      No controller? <b>WASD</b> = left, <b>arrows</b> = right, <b>Q/E/Shift/Space</b> = modifiers.
+    </p>
+  </section>
+
+  <!-- ============ SONG SELECT ============ -->
+  <section id="songselect" class="screen hidden">
+    <h2>SELECT TRACK</h2>
+    <div id="song-list" class="list"></div>
+    <div class="row">
+      <button id="btn-custom">＋ Load custom track</button>
+      <button id="btn-songs-back" data-back>← Back</button>
+    </div>
+    <p class="hint">Built-in charts play with a <b>metronome</b> until you drop the matching audio into <code>assets/</code>.</p>
+  </section>
+
+  <!-- ============ CUSTOM ============ -->
+  <section id="custom" class="screen hidden">
+    <h2>CUSTOM TRACK</h2>
+    <div class="form">
+      <label>Audio file <small>(.mp3 / .ogg / .wav)</small>
+        <input id="audio-input" type="file" accept="audio/*" />
+      </label>
+      <label>Beatmap <small>(.json — optional)</small>
+        <input id="beatmap-input" type="file" accept="application/json,.json" />
+      </label>
+      <p id="custom-status" class="status">Pick an audio file. Add a beatmap, or auto-chart it.</p>
+      <div class="row">
+        <button id="btn-play-custom">▸ Play with beatmap</button>
+        <button id="btn-autochart">✨ Auto-chart &amp; play</button>
+      </div>
+      <div class="row">
+        <button id="btn-download" class="hidden">⬇ Download generated chart</button>
+        <button id="btn-custom-back" data-back>← Back</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ RESULTS ============ -->
+  <section id="results" class="screen hidden">
+    <h2>RESULTS</h2>
+    <div id="res-grade" class="grade">—</div>
+    <div class="res-stats">
+      <div><label>SCORE</label><span id="res-score">0000000</span></div>
+      <div><label>MAX COMBO</label><span id="res-combo">0x</span></div>
+      <div><label>ACCURACY</label><span id="res-acc">0%</span></div>
+    </div>
+    <div id="res-counts" class="counts"></div>
+    <div class="row">
+      <button id="btn-results-again">↻ Play again</button>
+      <button id="btn-results-back" data-back>← Tracks</button>
+    </div>
+  </section>
+
+  <!-- ============ PAUSE ============ -->
+  <section id="pause" class="screen hidden">
+    <h2>PAUSED</h2>
+    <div class="row col">
+      <button id="btn-resume">▸ Resume</button>
+      <button id="btn-restart">↻ Restart</button>
+      <button id="btn-quit">✕ Quit to tracks</button>
+    </div>
+  </section>
+
+  <script type="module" src="src/main.js"></script>
+</body>
+</html>
