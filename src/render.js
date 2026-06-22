@@ -37,9 +37,12 @@ export class Renderer {
     this._logoReady = false;
     this.logo.onload = () => { this._logoReady = true; };
     this.logo.src = 'brand/chum-logo.png';
-    // water-theme sprites (chumthewaters.com): rising open-jaws shark + Jaws barrel.
+    // water-theme sprites (chumthewaters.com): rising open-jaws shark, deep prowling shark,
+    // Jaws barrel, surface boat.
     this.sharkBelowImg = this._img('brand/shark-below.png', 'sharkBelow');
+    this.sharkImg = this._img('brand/shark.png', 'shark');
     this.barrelImg = this._img('brand/barrel.png', 'barrel');
+    this.boatImg = this._img('brand/boat.png', 'boat');
     this.resize();
     window.addEventListener('resize', () => this.resize());
   }
@@ -76,8 +79,13 @@ export class Renderer {
     };
   }
 
-  addEffect({ judgement, ring, dir, t }) {
-    this.effects.push({ ring, dir, judgement, t0: t, dur: judgement === 'miss' ? 0.4 : 0.55 });
+  addEffect({ judgement, ring, dir, angle, t }) {
+    const e = { ring, dir, angle, judgement, t0: t, dur: judgement === 'miss' ? 0.4 : 0.7 };
+    if (judgement !== 'miss') {
+      const n = judgement === 'perfect' ? 11 : 6;     // sparkle mini-pearls bursting out on a hit
+      e.spark = Array.from({ length: n }, (_, i) => ({ a: (i / n) * Math.PI * 2 + i * 0.7, sp: 0.6 + (i % 3) * 0.28 }));
+    }
+    this.effects.push(e);
     if (judgement === 'miss') this.glitch = 1; else this.pulse = 1;
   }
 
@@ -93,7 +101,9 @@ export class Renderer {
     if (this.glitch > 0.01) ctx.translate(Math.sin(this._t * 90) * 7 * this.glitch, Math.sin(this._t * 70) * 4 * this.glitch);
 
     this._sky();
+    this._deepShark(this._t);    // a shark prowling the dark depths
     this._sharkBelow(this._t);   // open-jaws shark rising from the depths (centre)
+    this._surface(this._t);      // white waterline + the boat up top
     this._fin(this._t);          // iconic Jaws fin cutting the surface
     this._barrels(this._t);      // floating Jaws barrels
 
@@ -122,27 +132,79 @@ export class Renderer {
     this.glitch *= 0.86;
   }
 
-  // Underwater: bright surface up top fading to deep dark below (the Jaws poster look), with
-  // sunlight god-rays from the surface and rising bubbles.
+  // A pale sky band up top, a white WATERLINE at ~10%, then the underwater gradient fading to deep
+  // dark below (the Jaws poster look) — god-rays from the surface and rising bubbles.
   _sky() {
     const { ctx, w, h } = this;
+    this._waterY = h * 0.1;                         // shared: where the surface sits
     const g = ctx.createLinearGradient(0, 0, 0, h);
-    g.addColorStop(0, COL.surf); g.addColorStop(0.4, COL.mid); g.addColorStop(1, COL.deep);
+    g.addColorStop(0, '#bfe2f0');                   // sky above the water
+    g.addColorStop(0.099, '#a9d6ea');
+    g.addColorStop(0.1, COL.surf);                  // just below the waterline
+    g.addColorStop(0.45, COL.mid); g.addColorStop(1, COL.deep);
     ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
     // god rays slanting down from the surface
     ctx.save(); ctx.globalCompositeOperation = 'screen';
     for (let i = 0; i < 6; i++) {
       const rx = (((i * 0.21 + this._t * 0.012) % 1) * 1.3 - 0.15) * w;
-      ctx.fillStyle = 'rgba(150,210,240,0.045)';
-      ctx.beginPath(); ctx.moveTo(rx, 0); ctx.lineTo(rx + w * 0.05, 0); ctx.lineTo(rx + w * 0.2, h); ctx.lineTo(rx + w * 0.01, h); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = 'rgba(150,210,240,0.05)';
+      ctx.beginPath(); ctx.moveTo(rx, this._waterY); ctx.lineTo(rx + w * 0.05, this._waterY); ctx.lineTo(rx + w * 0.2, h); ctx.lineTo(rx + w * 0.01, h); ctx.closePath(); ctx.fill();
     }
     ctx.restore();
-    // rising bubbles
+    // rising bubbles (below the surface only)
     ctx.fillStyle = 'rgba(255,255,255,0.08)';
     for (let i = 0; i < 16; i++) {
-      const bx = (i * 97.3 % w), by = h - ((this._t * 30 + i * 60) % (h * 1.1)), br = 2 + (i % 4);
+      const bx = (i * 97.3 % w), by = h - ((this._t * 30 + i * 60) % (h - this._waterY)), br = 2 + (i % 4);
       ctx.beginPath(); ctx.arc(bx, by, br, 0, Math.PI * 2); ctx.fill();
     }
+  }
+
+  // The water's surface: a white foam waterline (like chumthewaters.com) with the boat riding it.
+  _surface(t) {
+    const { ctx, w, h } = this;
+    const y = this._waterY != null ? this._waterY : h * 0.1;
+    // the boat bobbing on the surface (drawn first so foam laps over its hull)
+    if (this._boatReady) {
+      const img = this.boatImg;
+      const ar = (img.naturalHeight && img.naturalWidth) ? img.naturalHeight / img.naturalWidth : 1.25;
+      const bw = Math.min(w * 0.13, 150), bh = bw * ar;
+      const bx = w * 0.62 + Math.sin(t * 0.5) * w * 0.015;
+      const by = y - bh * 0.74 + Math.sin(t * 0.9) * 3;
+      ctx.save(); ctx.translate(bx, by + bh / 2); ctx.rotate(Math.sin(t * 0.9) * 0.03);
+      ctx.drawImage(img, -bw / 2, -bh / 2, bw, bh); ctx.restore();
+    }
+    // white foam waterline — a wavy band
+    ctx.save();
+    ctx.beginPath(); ctx.moveTo(0, y);
+    for (let x = 0; x <= w; x += 16) ctx.lineTo(x, y + Math.sin(x * 0.025 + t * 1.6) * 4 + Math.sin(x * 0.07 - t * 2) * 2);
+    ctx.lineTo(w, y - 30); ctx.lineTo(0, y - 30); ctx.closePath();
+    const fg = ctx.createLinearGradient(0, y - 30, 0, y + 8);
+    fg.addColorStop(0, 'rgba(255,255,255,0)'); fg.addColorStop(0.7, 'rgba(238,250,255,0.5)'); fg.addColorStop(1, 'rgba(255,255,255,0.92)');
+    ctx.fillStyle = fg; ctx.fill();
+    // crisp foam line
+    ctx.beginPath();
+    for (let x = 0; x <= w; x += 8) { const yy = y + Math.sin(x * 0.025 + t * 1.6) * 4 + Math.sin(x * 0.07 - t * 2) * 2; x === 0 ? ctx.moveTo(x, yy) : ctx.lineTo(x, yy); }
+    ctx.strokeStyle = 'rgba(255,255,255,0.9)'; ctx.lineWidth = 2.5; ctx.stroke();
+    ctx.restore();
+  }
+
+  // A shark silhouette prowling the dark depths, cruising slowly (the side sprite, dimmed).
+  _deepShark(t) {
+    if (!this._sharkReady) return;
+    const { ctx, w, h } = this;
+    const img = this.sharkImg;
+    const ar = (img.naturalHeight && img.naturalWidth) ? img.naturalHeight / img.naturalWidth : 0.322;
+    const W = w * 0.3, H = W * ar;
+    const period = w + W * 2 + 300;
+    const dir = Math.floor((t * 24) / period) % 2 === 0 ? 1 : -1;  // alternate direction each lap
+    const raw = (t * 24) % period;
+    const x = dir > 0 ? raw - (W + 200) : w - (raw - (W + 200)) - W;
+    const y = h * 0.8 + Math.sin(t * 0.5) * h * 0.02;
+    ctx.save(); ctx.globalAlpha = 0.32; ctx.translate(x + W / 2, y + H / 2);
+    if (dir < 0) ctx.scale(-1, 1);                              // flip when swimming left
+    ctx.rotate(Math.sin(t * 0.5) * 0.04);
+    ctx.drawImage(img, -W / 2, -H / 2, W, H);
+    ctx.restore();
   }
 
   // Shark fin cruising the surface (silhouette + V-wake) — the Jaws signature.
@@ -375,20 +437,34 @@ export class Renderer {
     }
   }
 
-  // The player's aim cursor: a bright pearl that reaches out toward the teeth, on a faint tether
-  // from the gullet. Replaces the old realistic thumbstick (radio theme gone).
+  // The player's aim cursor: a CLAMSHELL that collects pearls. It opens toward the aim direction
+  // and chomps wide on a hit (driven by this.pulse). A pearl nests inside.
   _cursor(ring, input) {
     const { ctx } = this;
     const sp = this.speakers[ring];
     const s = input ? (ring === 'L' ? input.left : input.right) : { x: 0, y: 0, mag: 0 };
     const c = ringColor(ring);
     const maxOff = sp.r * 0.6;
+    const mag = s.mag || 0;
     const cx = sp.x + (s.x || 0) * maxOff, cy = sp.y + (s.y || 0) * maxOff;
-    // tether from the gullet to the aim pearl
-    ctx.strokeStyle = this._alpha(c, 0.22 + 0.3 * (s.mag || 0)); ctx.lineWidth = sp.r * 0.05; ctx.lineCap = 'round';
-    ctx.beginPath(); ctx.moveTo(sp.x, sp.y); ctx.lineTo(cx, cy); ctx.stroke();
-    // the aim pearl (a touch larger when pushed)
-    this._pearl(cx, cy, sp.r * (0.16 + 0.05 * (s.mag || 0)), ring, 1);
+    const a = mag > 0.1 ? Math.atan2(s.y, s.x) : -Math.PI / 2;   // aim; at rest it closes facing up
+    const R = sp.r * 0.3;
+    const open = 0.16 + 0.32 * mag + 0.6 * this.pulse;           // gap half-angle; chomps on hits
+    const arc = 1.15;                                            // each shell's angular width
+    const shell = (edge, sweep) => {
+      const g = ctx.createRadialGradient(cx, cy, R * 0.12, cx, cy, R);
+      g.addColorStop(0, '#fbf1dd'); g.addColorStop(0.7, '#e6d2ad'); g.addColorStop(1, '#c9ad7e');
+      ctx.beginPath(); ctx.moveTo(cx, cy); ctx.arc(cx, cy, R, edge, edge + sweep, sweep < 0); ctx.closePath();
+      ctx.fillStyle = g; ctx.fill();
+      ctx.strokeStyle = 'rgba(120,86,48,0.35)'; ctx.lineWidth = Math.max(1, R * 0.04);
+      for (let k = 1; k <= 4; k++) { const ra = edge + sweep * (k / 5); ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + Math.cos(ra) * R, cy + Math.sin(ra) * R); ctx.stroke(); }
+      ctx.save(); ctx.shadowColor = c; ctx.shadowBlur = 8 + this.pulse * 18;
+      ctx.beginPath(); ctx.arc(cx, cy, R, edge, edge + sweep, sweep < 0);
+      ctx.strokeStyle = this._alpha(c, 0.85); ctx.lineWidth = Math.max(1.5, R * 0.08); ctx.stroke(); ctx.restore();
+    };
+    shell(a + open, arc);   // top half
+    shell(a - open, -arc);  // bottom half
+    this._pearl(cx, cy, R * 0.3, ring, 0.95);   // the pearl it's collecting
   }
 
   _effects(ring, songTime) {
@@ -401,12 +477,23 @@ export class Renderer {
       const c = e.judgement === 'perfect' ? COL.perfect : e.judgement === 'good' ? COL.good : COL.miss;
       const v = e.angle != null ? angleVec(e.angle) : dirVector(e.dir);
       const rx = sp.x + v.x * sp.r, ry = sp.y + v.y * sp.r;
-      ctx.beginPath(); ctx.arc(rx, ry, sp.r * 0.25 * (1 + age * 1.5), 0, Math.PI * 2);
-      ctx.strokeStyle = this._alpha(c, (1 - age) * 0.9); ctx.lineWidth = 4 * (1 - age); ctx.stroke();
-      ctx.globalAlpha = 1 - age; ctx.fillStyle = c; ctx.font = `900 ${sp.r * 0.4}px system-ui`;
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText(e.judgement.toUpperCase(), sp.x, sp.y - sp.r * 1.5 - age * 18);
-      ctx.globalAlpha = 1;
+      // expanding shockwave ring (bigger/brighter on a perfect)
+      const big = e.judgement === 'perfect' ? 2.3 : 1.6;
+      ctx.beginPath(); ctx.arc(rx, ry, sp.r * 0.25 * (1 + age * big), 0, Math.PI * 2);
+      ctx.strokeStyle = this._alpha(c, (1 - age) * 0.9); ctx.lineWidth = 5 * (1 - age); ctx.stroke();
+      // sparkle mini-pearls bursting outward
+      if (e.spark) for (const s of e.spark) {
+        const d = sp.r * (0.2 + age * 1.5 * s.sp);
+        this._pearl(rx + Math.cos(s.a) * d, ry + Math.sin(s.a) * d, sp.r * 0.08 * (1 - age), ring, 1 - age);
+      }
+      // judgement text: rises, scales in, glows
+      ctx.save();
+      ctx.globalAlpha = 1 - age; ctx.fillStyle = c;
+      ctx.shadowColor = c; ctx.shadowBlur = 18 * (1 - age);
+      const fs = sp.r * (e.judgement === 'perfect' ? 0.5 : 0.42) * (1 + (1 - Math.min(1, age * 4)) * 0.35);
+      ctx.font = `900 ${fs}px system-ui`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(e.judgement.toUpperCase(), sp.x, sp.y - sp.r * 1.55 - age * 24);
+      ctx.restore(); ctx.globalAlpha = 1;
     }
   }
 
@@ -416,6 +503,11 @@ export class Renderer {
   _topbar(scorer, chart, songTime) {
     const { ctx, w, h } = this;
     const sc = scorer || { score: 0, combo: 0, accuracy: 1 };
+
+    // dark strip so the HUD reads over the pale sky band above the waterline
+    const strip = ctx.createLinearGradient(0, 0, 0, h * 0.09);
+    strip.addColorStop(0, 'rgba(2,12,26,0.6)'); strip.addColorStop(1, 'rgba(2,12,26,0)');
+    ctx.fillStyle = strip; ctx.fillRect(0, 0, w, h * 0.09);
 
     // --- song progress bar ---
     const barH = Math.max(5, h * 0.009);
