@@ -76,6 +76,7 @@
     <div class="row ghost-row">
       <button id="btn-start">browse songs</button>
       <button id="btn-demo">▶ watch demo</button>
+      <button id="btn-leaderboard">🏆 leaderboard</button>
       <button id="btn-settings">⚙ settings</button>
     </div>
   </section>
@@ -155,9 +156,22 @@
       <div><label>ACCURACY</label><span id="res-acc">0%</span></div>
     </div>
     <div id="res-counts" class="counts"></div>
+    <div id="res-newbest" class="newbest hidden">★ NEW BEST ★</div>
+    <div id="res-leaderboard" class="lb-list"></div>
     <div class="row">
       <button id="btn-results-again">↻ Play again</button>
       <button id="btn-results-back" data-back>← Tracks</button>
+    </div>
+  </section>
+
+  <!-- ============ LEADERBOARD ============ -->
+  <section id="leaderboard" class="screen hidden">
+    <h2>🏆 LEADERBOARD</h2>
+    <div id="lb-song" class="lb-song"></div>
+    <div id="lb-list" class="lb-list"></div>
+    <div class="row">
+      <button id="btn-lb-clear">✕ Clear scores</button>
+      <button id="btn-lb-back" data-back>← Back</button>
     </div>
   </section>
 

@@ -116,6 +116,10 @@ class Game {
     this._el('btn-settings-reset').addEventListener('click', () => this._resetSettings());
     this._el('btn-pause-float').addEventListener('click', () => this._pause());
 
+    this._el('btn-leaderboard').addEventListener('click', () => this._showLeaderboard());
+    this._el('btn-lb-back').addEventListener('click', () => this.showScreen('title'));
+    this._el('btn-lb-clear').addEventListener('click', () => this._clearLeaderboard());
+
     this._el('btn-play-custom').addEventListener('click', () => this._playCustom(false));
     this._el('btn-autochart').addEventListener('click', () => this._playCustom(true));
     this._el('btn-download').addEventListener('click', () => this._downloadChart());
@@ -187,6 +191,44 @@ class Game {
     this._applySettings();
     this._saveSettings();
     this._syncSettingsUI();
+  }
+
+  // --- leaderboard (localStorage, per song) --------------------------------
+  _allScores() { try { return JSON.parse(localStorage.getItem('chumstick.scores') || '{}'); } catch { return {}; } }
+  _loadScores(title) { return (this._allScores()[title] || []).slice().sort((a, b) => b.score - a.score); }
+
+  _saveScore(title, entry) {
+    const all = this._allScores();
+    const list = (all[title] || []).concat([entry]).sort((a, b) => b.score - a.score).slice(0, 10);
+    all[title] = list;
+    try { localStorage.setItem('chumstick.scores', JSON.stringify(all)); } catch { /* private mode */ }
+    return list.indexOf(entry);   // rank, or -1 if it didn't make the top 10
+  }
+
+  _renderLeaderboard(listEl, title, highlightScore) {
+    const list = this._loadScores(title);
+    if (!list.length) { listEl.innerHTML = '<div class="lb-empty">No scores yet — set one.</div>'; return; }
+    listEl.innerHTML = list.map((e, i) =>
+      `<div class="lb-row${highlightScore != null && e.score === highlightScore ? ' hot' : ''}">` +
+      `<span class="lb-rank">${i + 1}</span>` +
+      `<span class="lb-grade" data-grade="${e.grade}">${e.grade}</span>` +
+      `<span class="lb-score">${String(e.score).padStart(7, '0')}</span>` +
+      `<span class="lb-acc">${(e.acc * 100).toFixed(1)}%</span>` +
+      `<span class="lb-combo">${e.combo}x</span>` +
+      `<span class="lb-date">${e.date || ''}</span></div>`).join('');
+  }
+
+  _showLeaderboard() {
+    const title = BUILTIN[0].title;
+    this._el('lb-song').textContent = title;
+    this._renderLeaderboard(this._el('lb-list'), title);
+    this.showScreen('leaderboard');
+  }
+
+  _clearLeaderboard() {
+    const all = this._allScores(); delete all[BUILTIN[0].title];
+    try { localStorage.setItem('chumstick.scores', JSON.stringify(all)); } catch { /* private mode */ }
+    this._renderLeaderboard(this._el('lb-list'), BUILTIN[0].title);
   }
 
   /** Adjust the focused slider by one step in `dir` (±1) — for D-pad / arrow control. */
@@ -347,6 +389,12 @@ class Game {
       `<span class="c-perfect">${s.counts.perfect} PERFECT</span>` +
       `<span class="c-good">${s.counts.good} GOOD</span>` +
       `<span class="c-miss">${s.counts.miss} MISS</span>`;
+    // record to the leaderboard (skip the auto-play demo) and show the standings
+    const title = this.chart.meta.title;
+    const entry = { score: s.score, grade: s.grade, acc: s.accuracy, combo: s.maxCombo, date: new Date().toLocaleDateString() };
+    const rank = this.demo ? -1 : this._saveScore(title, entry);
+    this._el('res-newbest').classList.toggle('hidden', rank !== 0);
+    this._renderLeaderboard(this._el('res-leaderboard'), title, this.demo ? null : entry.score);
     this.showScreen('results');
   }
 
