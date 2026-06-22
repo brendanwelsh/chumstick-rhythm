@@ -13,7 +13,8 @@ import { TAP_ARC } from './scoring.js';
 
 const COL = {
   L: '#2fe0ff', R: '#ff9f43',                 // L = cyan, R = warm orange — clearly DISTINCT sides
-  sky0: '#081a33', sky1: '#13539e', sky2: '#39a7e0',
+  surf: '#2f9fcf', mid: '#0a4a72', deep: '#011528', // Jaws underwater: light surface -> deep dark
+  blood: '#c42020', bloodDim: 'rgba(160,25,25,0.85)',
   shark: '#0b2747',
   body: '#0c1f38', bodyHi: '#1f426a', bodyLo: '#06101f', chrome: '#5f8ec2',
   cone: '#0c1a2e', coneHi: '#1a3252',
@@ -88,8 +89,8 @@ export class Renderer {
     if (this.glitch > 0.01) ctx.translate(Math.sin(this._t * 90) * 7 * this.glitch, Math.sin(this._t * 70) * 4 * this.glitch);
 
     this._sky();
+    this._fin(this._t);          // iconic Jaws fin cutting the surface
     this._shark(this._t);
-    this._logoMark();
     this._stereoBody();
 
     // base layer: speaker bodies + the player's thumbstick/trail
@@ -100,14 +101,14 @@ export class Renderer {
       this._thumbstick(ring, input);
     }
 
-    // the middle console (an info box) sits UNDER the notes — notes/FX are always the top layer
-    this._console(scorer, chart);
-
-    // TOP layer: notes + hit FX, so they can never be hidden behind the console or stereo body
+    // TOP layer: notes + hit FX. The playfield is the two speakers; nothing UI sits over them.
     for (const ring of ['L', 'R']) {
       if (chart) this._notes(ring, chart, songTime);
       this._effects(ring, songTime);
     }
+
+    // HUD lives at the very top edge (out of the playfield): progress bar + score/combo/accuracy
+    this._topbar(scorer, chart, songTime);
 
     if (chart && songTime < 0) this._countIn(songTime);
     if (state.demo) this._demoBadge();
@@ -118,23 +119,50 @@ export class Renderer {
     this.glitch *= 0.86;
   }
 
+  // Underwater: bright surface up top fading to deep dark below (the Jaws poster look), with
+  // sunlight god-rays from the surface and rising bubbles.
   _sky() {
     const { ctx, w, h } = this;
     const g = ctx.createLinearGradient(0, 0, 0, h);
-    g.addColorStop(0, COL.sky0); g.addColorStop(0.55, COL.sky1); g.addColorStop(1, COL.sky2);
+    g.addColorStop(0, COL.surf); g.addColorStop(0.4, COL.mid); g.addColorStop(1, COL.deep);
     ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
-    // drifting clouds
-    ctx.fillStyle = 'rgba(255,255,255,0.06)';
-    for (let i = 0; i < 4; i++) {
-      const cw = w * 0.22, cx = ((this._t * 12 + i * w * 0.31) % (w + cw)) - cw, cy = h * (0.12 + i * 0.09);
-      ctx.beginPath(); ctx.ellipse(cx, cy, cw, cw * 0.32, 0, 0, Math.PI * 2); ctx.fill();
+    // god rays slanting down from the surface
+    ctx.save(); ctx.globalCompositeOperation = 'screen';
+    for (let i = 0; i < 6; i++) {
+      const rx = (((i * 0.21 + this._t * 0.012) % 1) * 1.3 - 0.15) * w;
+      ctx.fillStyle = 'rgba(150,210,240,0.045)';
+      ctx.beginPath(); ctx.moveTo(rx, 0); ctx.lineTo(rx + w * 0.05, 0); ctx.lineTo(rx + w * 0.2, h); ctx.lineTo(rx + w * 0.01, h); ctx.closePath(); ctx.fill();
     }
+    ctx.restore();
     // rising bubbles
     ctx.fillStyle = 'rgba(255,255,255,0.08)';
-    for (let i = 0; i < 14; i++) {
+    for (let i = 0; i < 16; i++) {
       const bx = (i * 97.3 % w), by = h - ((this._t * 30 + i * 60) % (h * 1.1)), br = 2 + (i % 4);
       ctx.beginPath(); ctx.arc(bx, by, br, 0, Math.PI * 2); ctx.fill();
     }
+  }
+
+  // Shark fin cruising the surface (silhouette + V-wake) — the Jaws signature.
+  _fin(t) {
+    const { ctx, w, h } = this;
+    const W = Math.max(26, w * 0.028);
+    const period = w + W * 5;
+    const x = ((t * 34) % period) - W * 2.5;       // slow cruise, left -> right
+    const y = h * 0.11 + Math.sin(t * 0.8) * h * 0.008;
+    ctx.save();
+    // trailing wake
+    ctx.strokeStyle = 'rgba(220,240,255,0.10)'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(x - W * 2.4, y + W * 0.15); ctx.lineTo(x + W * 0.2, y + W * 0.5);
+    ctx.moveTo(x - W * 2.4, y + W * 0.95); ctx.lineTo(x + W * 0.2, y + W * 0.5); ctx.stroke();
+    // fin silhouette
+    ctx.fillStyle = 'rgba(5,16,30,0.92)';
+    ctx.beginPath();
+    ctx.moveTo(x + W * 0.35, y - W);
+    ctx.quadraticCurveTo(x + W * 0.08, y - W * 0.2, x - W * 0.55, y + W * 0.45);
+    ctx.lineTo(x + W * 0.72, y + W * 0.45);
+    ctx.quadraticCurveTo(x + W * 0.6, y - W * 0.25, x + W * 0.35, y - W);
+    ctx.closePath(); ctx.fill();
+    ctx.restore();
   }
 
   _shark(t) {
@@ -193,16 +221,6 @@ export class Renderer {
     };
     draw(this.w * 0.13, 42, this.h * 0.18, 0.3);      // small far shark
     draw(this.w * 0.26, 88, this.h * 0.31, 0.7);      // big near shark
-  }
-
-  _logoMark() {
-    const { ctx, w, h } = this;
-    if (this._logoReady) {
-      const s = Math.min(w * 0.075, 76);
-      ctx.drawImage(this.logo, w / 2 - s / 2, h * 0.03, s, s);
-      ctx.fillStyle = COL.text; ctx.font = `800 ${s * 0.22}px system-ui`; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
-      ctx.fillText('CHUMSTICK RHYTHM', w / 2, h * 0.03 + s + 2);
-    }
   }
 
   _stereoBody() {
@@ -442,27 +460,49 @@ export class Renderer {
     }
   }
 
-  _console(scorer, chart) {
-    const { ctx } = this;
-    const d = this.console;
+  // Clean HUD at the very TOP edge (out of the playfield). A song-progress "score bar" runs across
+  // the top; SCORE left, ACCURACY right, big COMBO + track title centred. Replaces the old centre
+  // console so the space between the speakers stays clear for gameplay.
+  _topbar(scorer, chart, songTime) {
+    const { ctx, w, h } = this;
     const sc = scorer || { score: 0, combo: 0, accuracy: 1 };
-    const cxm = d.x + d.w / 2;
-    this._roundRect(d.x, d.y, d.w, d.h, 9);
-    const g = ctx.createLinearGradient(0, d.y, 0, d.y + d.h);
-    g.addColorStop(0, 'rgba(10,20,34,0.82)'); g.addColorStop(1, 'rgba(4,8,15,0.82)');
-    ctx.fillStyle = g; ctx.fill();
-    ctx.strokeStyle = 'rgba(95,142,194,0.4)'; ctx.lineWidth = 1.5; ctx.stroke();
 
-    // tiny L|R accent so the box reads which side is which colour
-    ctx.fillStyle = this._alpha(COL.L, 0.7); ctx.fillRect(d.x + d.w * 0.16, d.y + d.h * 0.16, d.w * 0.1, 3);
-    ctx.fillStyle = this._alpha(COL.R, 0.7); ctx.fillRect(d.x + d.w * 0.74, d.y + d.h * 0.16, d.w * 0.1, 3);
+    // --- song progress bar ---
+    const barH = Math.max(5, h * 0.009);
+    ctx.fillStyle = 'rgba(2,10,22,0.75)'; ctx.fillRect(0, 0, w, barH);
+    const prog = (chart && chart.duration > 0 && songTime > 0) ? Math.max(0, Math.min(1, songTime / chart.duration)) : 0;
+    const pg = ctx.createLinearGradient(0, 0, w, 0);
+    pg.addColorStop(0, COL.L); pg.addColorStop(1, COL.R);
+    ctx.fillStyle = pg; ctx.fillRect(0, 0, w * prog, barH);
+    if (prog > 0 && prog < 1) { ctx.fillStyle = this._alpha(COL.blood, 0.95); ctx.fillRect(w * prog - 1, 0, 3, barH); } // playhead
 
+    const top = barH + h * 0.012;
+    // --- score (left) / accuracy (right) ---
+    ctx.textBaseline = 'top';
+    const lab = `700 ${Math.max(9, h * 0.016)}px ui-monospace, monospace`;
+    const big = `800 ${Math.max(16, h * 0.03)}px ui-monospace, monospace`;
+    ctx.textAlign = 'left';
+    ctx.fillStyle = COL.dim; ctx.font = lab; ctx.fillText('SCORE', w * 0.03, top);
+    ctx.fillStyle = COL.text; ctx.font = big; ctx.fillText(String(sc.score).padStart(7, '0'), w * 0.03, top + h * 0.02);
+    ctx.textAlign = 'right';
+    ctx.fillStyle = COL.dim; ctx.font = lab; ctx.fillText('ACCURACY', w * 0.97, top);
+    ctx.fillStyle = COL.text; ctx.font = big; ctx.fillText((sc.accuracy * 100).toFixed(1) + '%', w * 0.97, top + h * 0.02);
+
+    // --- centre: track title + big combo ---
     ctx.textAlign = 'center';
-    ctx.fillStyle = COL.text; ctx.font = `900 ${d.h * 0.4}px system-ui`; ctx.textBaseline = 'middle';
-    ctx.fillText(sc.combo > 0 ? `${sc.combo}x` : '♪', cxm, d.y + d.h * 0.44);
-
-    ctx.fillStyle = COL.dim; ctx.font = `700 ${d.h * 0.13}px ui-monospace, monospace`; ctx.textBaseline = 'bottom';
-    ctx.fillText(`${String(sc.score).padStart(7, '0')}  ${(sc.accuracy * 100).toFixed(1)}%`, cxm, d.y + d.h * 0.92);
+    if (chart && chart.meta.title) {
+      ctx.fillStyle = this._alpha(COL.text, 0.6); ctx.font = `600 ${Math.max(10, h * 0.016)}px system-ui`;
+      ctx.fillText(chart.meta.title, w / 2, top, w * 0.5);
+    }
+    if (sc.combo > 1) {
+      const cs = Math.max(26, h * 0.062) * (1 + Math.min(0.28, this.pulse * 0.28));
+      ctx.save(); ctx.shadowColor = 'rgba(196,32,32,0.7)'; ctx.shadowBlur = 22;
+      ctx.fillStyle = COL.blood; ctx.font = `${cs}px Jaws, Impact, sans-serif`;
+      ctx.fillText(String(sc.combo), w / 2, top + h * 0.022);
+      ctx.restore();
+      ctx.fillStyle = COL.dim; ctx.font = `700 ${Math.max(8, h * 0.013)}px ui-monospace, monospace`;
+      ctx.fillText('COMBO', w / 2, top + h * 0.022 + cs);
+    }
   }
 
   _countIn(songTime) {

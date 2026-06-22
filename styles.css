@@ -1,10 +1,19 @@
+/* Jaws title face (Amity Jack) — from chumthewaters.com */
+@font-face {
+  font-family: 'Jaws';
+  src: url('brand/amity-jack.ttf') format('truetype');
+  font-weight: normal; font-style: normal; font-display: swap;
+}
+
 :root {
   --l: #2fe0ff;        /* left speaker / left stick — cyan */
   --r: #ff9f43;        /* right speaker / right stick — warm orange (distinct from L) */
-  --bg0: #081a33;
-  --bg1: #0c2444;
+  --blood: #c42020;    /* Jaws title red */
+  --blood-dim: rgba(160,25,25,0.7);
+  --bg0: #011830;      /* deep water */
+  --bg1: #044074;      /* mid water */
   --text: #eaf4ff;
-  --dim: #9cc2e6;
+  --dim: #8fb6d8;
   --chrome: #5f8ec2;
   --gold: #7dffea;
   --green: #9bff8a;
@@ -124,8 +133,9 @@ html, body {
   justify-content: flex-start; padding-top: 3vh; gap: 9px;
   background: linear-gradient(180deg, rgba(5,12,26,0.96) 0%, rgba(5,12,26,0.9) 52%, rgba(5,12,26,0.32) 100%);
 }
-#title .brand-logo { width: clamp(54px, 8vw, 88px); margin-bottom: 0; }
-.title-logo { font-size: clamp(26px, 5.4vw, 54px) !important; margin-top: 0 !important; white-space: nowrap; }
+#title .brand-logo { width: clamp(44px, 6vw, 70px); margin-bottom: -4px; opacity: 0.9; }
+#title .jaws-main { font-size: clamp(40px, 10vw, 96px); }
+#title .jaws-sub { font-size: clamp(15px, 4vw, 34px); }
 #tester { padding: 12px 22px; gap: 10px; }
 
 h2 {
@@ -134,10 +144,25 @@ h2 {
 }
 
 .brand-logo { width: clamp(72px, 12vw, 120px); height: auto; filter: drop-shadow(0 0 18px rgba(43,159,218,0.6)); }
-.title-logo {
-  font-size: clamp(34px, 8vw, 72px); font-weight: 900; letter-spacing: 0.14em; margin-top: 6px;
-  background: linear-gradient(90deg, var(--l), #fff 50%, var(--r));
-  -webkit-background-clip: text; background-clip: text; color: transparent;
+
+/* ---------- Jaws title (Amity Jack, blood red) ---------- */
+.jaws-title { text-align: center; line-height: 0.82; margin: 2px 0 2px; white-space: nowrap; }
+.jaws-main {
+  display: block;
+  font-family: 'Jaws', 'Bebas Neue', Impact, sans-serif; font-weight: normal; text-transform: uppercase;
+  font-size: clamp(48px, 11vw, 120px); letter-spacing: clamp(-3px, -0.2vw, -1px);
+  color: var(--blood);
+  text-shadow: 0 3px 10px rgba(0,0,0,0.45), 0 0 70px rgba(180,30,30,0.45);
+  animation: bloody 4s ease-in-out infinite;
+}
+.jaws-sub {
+  display: block;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-weight: 400; text-transform: uppercase;
+  font-size: clamp(18px, 4.6vw, 44px); letter-spacing: clamp(8px, 3vw, 28px); text-indent: clamp(8px, 3vw, 28px);
+  color: var(--blood-dim); margin-top: -2px;
+}
+@keyframes bloody {
+  50% { text-shadow: 0 3px 10px rgba(0,0,0,0.45), 0 0 90px rgba(196,32,32,0.6), 0 0 130px rgba(160,20,20,0.35); }
 }
 .hint { max-width: 720px; color: var(--dim); font-size: 14px; line-height: 1.6; }
 .hint b.l { color: var(--l); } .hint b.r { color: var(--r); }

@@ -24,6 +24,9 @@ class Game {
     this.scorer = new Scorer();
     this.renderer = new Renderer(document.getElementById('stage'));
 
+    // Preload the Jaws font so the canvas HUD can render it (CSS @font-face alone won't trigger it).
+    try { document.fonts && document.fonts.load && document.fonts.load('60px "Jaws"').catch(() => {}); } catch { /* old browser */ }
+
     this.state = 'title';
     this.demo = false;        // attract/auto-play mode
     this.currentRaw = null;   // un-normalized chart, re-normalized on each (re)start
