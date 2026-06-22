@@ -23,7 +23,7 @@ export class AudioEngine {
 
     // Groove bus (the synthesized backing when there's no audio file).
     this.grooveGain = this.ctx.createGain();
-    this.grooveGain.gain.value = 0.55;
+    this.grooveGain.gain.value = 0.85;
     this.grooveGain.connect(this.master);
 
     // 0.5 s of white noise, reused by hats/snare.

@@ -45,14 +45,16 @@ export class Renderer {
     this.camera.position.set(0, 1.4, 9);
     this.camera.lookAt(0, 0.4, 0);
 
+    this._sharedNoteGeo = new THREE.ConeGeometry(0.22, 0.5, 4);
+    this._sharedTailGeo = new THREE.CylinderGeometry(0.05, 0.05, 1, 6);
+    this._sharedGateGeo = new THREE.TorusGeometry(0.30, 0.06, 12, 28);
+
     this._lights();
     this._rings();
     this._sticks();
+    this._cursors();
     this._atmosphere();
     this._boombox();
-
-    this._sharedNoteGeo = new THREE.ConeGeometry(0.22, 0.5, 4);
-    this._sharedTailGeo = new THREE.CylinderGeometry(0.05, 0.05, 1, 6);
 
     this.resize();
     window.addEventListener('resize', () => this.resize());
@@ -129,6 +131,40 @@ export class Renderer {
       cap.position.y = 0.5; cap.scale.y = 0.6; pivot.add(cap);
       this.sticks[side] = { root, pivot, cap };
       this.scene.add(root);
+    }
+  }
+
+  // A big, bright cursor INSIDE each ring that tracks the live stick in real time — the main
+  // "are my sticks moving?" feedback. A line from center shows the push direction/strength.
+  _cursors() {
+    this.cursors = {};
+    for (const side of ['L', 'R']) {
+      const mat = new THREE.MeshStandardMaterial({
+        color: 0xffffff, emissive: COL[side], emissiveIntensity: 1.0, metalness: 0.2, roughness: 0.25,
+      });
+      const dot = new THREE.Mesh(new THREE.SphereGeometry(0.22, 24, 16), mat);
+      dot.position.set(0, 0, 0.15);
+      const lineGeo = new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(0, 0, 0.1), new THREE.Vector3(0, 0, 0.1),
+      ]);
+      const line = new THREE.Line(lineGeo, new THREE.LineBasicMaterial({ color: COL[side], transparent: true, opacity: 0.7 }));
+      this.rings[side].group.add(line, dot);
+      this.cursors[side] = { dot, line, mat };
+    }
+  }
+
+  _updateCursors(input) {
+    for (const side of ['L', 'R']) {
+      const s = input ? (side === 'L' ? input.left : input.right) : { x: 0, y: 0, mag: 0 };
+      const px = (s.x || 0) * RING.r, py = -(s.y || 0) * RING.r; // screen y-down -> 3D y-up
+      const c = this.cursors[side];
+      c.dot.position.set(px, py, 0.15);
+      const mag = s.mag || 0;
+      c.dot.scale.setScalar(0.8 + mag * 0.6);
+      c.mat.emissiveIntensity = 0.7 + mag * 1.8;
+      const p = c.line.geometry.attributes.position;
+      p.setXYZ(1, px, py, 0.1); p.needsUpdate = true;
+      c.line.material.opacity = 0.25 + mag * 0.6;
     }
   }
 
@@ -216,6 +252,7 @@ export class Renderer {
     if (this._dust) this._dust.rotation.y = this._t * 0.02;
 
     this._updateNotes(chart, songTime);
+    this._updateCursors(input);
     this._updateSticks(input);
     this._updateRingFx(songTime);
 
@@ -246,10 +283,27 @@ export class Renderer {
       entry.mat.opacity = n.judged ? Math.max(0, 0.6 - (songTime - n.time) * 3) : appear;
       entry.mat.emissiveIntensity = n.judged ? 0.2 : 0.7;
       if (entry.tail) entry.tail.visible = !n.judged || n.holdActive;
+
+      // Target gate: fixed on the ring at the push direction. Brightens as the note nears,
+      // and snaps to white + grows in the hit window = "PUSH HERE NOW".
+      if (entry.gate) {
+        const near = Math.abs(dt) < 0.1;
+        const closeness = Math.max(0, 1 - Math.abs(dt) / 0.6);
+        const col = (near && !n.judged) ? 0xffffff : COL[n.ring];
+        entry.gateMat.color.setHex(col);
+        entry.gateMat.emissive.setHex(col);
+        entry.gateMat.emissiveIntensity = 0.4 + closeness * 1.3 + (near ? 1.8 : 0);
+        entry.gateMat.opacity = n.judged ? Math.max(0, 0.6 - (songTime - n.time) * 4) : 0.45 + closeness * 0.5;
+        entry.gate.scale.setScalar((near && !n.judged) ? 1.5 : 1 + closeness * 0.25);
+      }
     }
     // dispose meshes that are no longer live
     for (const [id, e] of this._noteMeshes) {
-      if (!live.has(id)) { this.scene.remove(e.group); e.mat.dispose(); this._noteMeshes.delete(id); }
+      if (!live.has(id)) {
+        this.scene.remove(e.group); e.mat.dispose();
+        if (e.gate) { this.rings[e.ring].group.remove(e.gate); e.gateMat.dispose(); }
+        this._noteMeshes.delete(id);
+      }
     }
   }
 
@@ -277,7 +331,18 @@ export class Renderer {
       group.add(tail);
     }
     this.scene.add(group);
-    const entry = { group, mat, tail };
+
+    // Fixed target gate on the ring at the push direction (where the stick cursor must go).
+    const gv = dir3(n.dir);
+    const gateMat = new THREE.MeshStandardMaterial({
+      color: COL[n.ring], emissive: COL[n.ring], emissiveIntensity: 0.4,
+      metalness: 0.2, roughness: 0.4, transparent: true, opacity: 0.5,
+    });
+    const gate = new THREE.Mesh(this._sharedGateGeo, gateMat);
+    gate.position.set(gv.x * RING.r, gv.y * RING.r, 0.05);
+    this.rings[n.ring].group.add(gate);
+
+    const entry = { group, mat, tail, gate, gateMat, ring: n.ring };
     this._noteMeshes.set(n.id, entry);
     return entry;
   }

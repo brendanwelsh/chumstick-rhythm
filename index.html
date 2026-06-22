@@ -11,6 +11,16 @@
   </script>
 </head>
 <body>
+  <!-- Boot gate: a real click/keypress is REQUIRED to unlock browser audio
+       (a gamepad button can't), so we force one before anything else. -->
+  <div id="boot">
+    <div class="boot-inner">
+      <div class="boot-logo">📻 STEREO FLIX</div>
+      <div class="boot-cta">CLICK or PRESS ANY KEY to start</div>
+      <div class="boot-sub">🔊 enables sound — then plug in your controller</div>
+    </div>
+  </div>
+
   <!-- Gameplay canvas (Three.js / WebGL renders the 3D stage here) -->
   <canvas id="stage"></canvas>
 
@@ -24,6 +34,7 @@
     <div id="judge"></div>
     <div id="countin"></div>
     <div id="demo-badge" class="hidden">▶ DEMO · auto-play — Back/Esc to exit</div>
+    <div id="audio-src"></div>
   </div>
 
   <div id="error" class="hidden"></div>

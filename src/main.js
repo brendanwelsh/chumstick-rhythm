@@ -120,7 +120,11 @@ class Game {
   }
 
   _unlockAudioOnGesture() {
-    const unlock = () => { this.audio.resume(); };
+    const unlock = () => {
+      this.audio.resume();
+      const boot = this._el('boot');
+      if (boot) boot.classList.add('gone'); // reveal the title once audio is unlocked
+    };
     window.addEventListener('pointerdown', unlock);
     window.addEventListener('keydown', unlock);
   }
@@ -219,6 +223,9 @@ class Game {
     this.audio.stop();
     this.audio.resume();
     this.audio.start(this.chart.meta.bpm, LEAD_IN);
+    this._el('audio-src').textContent = this.audio.hasAudio
+      ? '♪ ' + this.chart.meta.title
+      : '♪ synth groove — drop assets/' + (this.chart.meta.audio || 'your-track.mp3') + ' for the real track';
     this.state = 'playing';
     this.showScreen(null);
   }
