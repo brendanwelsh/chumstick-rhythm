@@ -1,24 +1,36 @@
-// scoring.js — Scorer: judgement windows, combo, score, accuracy, grade.
+// scoring.js — Scorer: continuous, presence-based judgement for an analog-stick rhythm game.
 //
-// All times in seconds. A flick is matched to the nearest unjudged note on the same ring
-// within the Good window. Right direction + right modifier => timing judgement; wrong
-// direction/modifier inside the window => Miss (and the note is consumed so it can't be
-// re-triggered).
+// A thumbstick is an ABSOLUTE position inside a disc, not a button — so we don't judge a discrete
+// "flick" at one instant. Every frame we ask, per note: is the stick where the note wants it?
+//   tap   — be in the arc as the note CROSSES (no timed press). Graded by how centred you were.
+//   hold  — keep the stick parked in the arc for the span. Graded by coverage.
+//   slide — trace a target that sweeps along the ring. Graded by coverage of the moving line.
+//   spin  — rotate the stick to fill a gauge. Graded by rotations completed.
+// This is what makes it FLOW: you're rewarded for being on it / following it, not for snapping.
+//
+// All times in seconds, all driven off AudioEngine.time via the songTime passed each frame.
 
-export const WINDOWS = { perfect: 0.045, good: 0.090 }; // ± seconds
+import { noteTargetAngle, wrapPi } from './chart.js';
+
+export const WINDOWS = { perfect: 0.05, good: 0.13 };  // tap timing windows (± seconds)
 const SCORE = { perfect: 300, good: 100, miss: 0 };
-const HOLD_BONUS = 150;            // for completing a hold
-// Flicks/holds are matched by ANGLE within a forgiving range (an arc), not an exact direction.
-export const HIT_ARC = 0.62;       // ±~36° counts as on-target for a flick
-const HOLD_ARC = 0.9;              // ±~52° to keep a hold alive (more lenient)
+const HOLD_BONUS = 150;                 // bonus for clearing a sustained note
+const SUSTAIN_RATE = 220;               // points/second while satisfying a hold/slide/spin
+
+// How close (radians) the stick heading must be to the target to count as "on it". Generous on
+// purpose — flow over precision. Slides/holds are looser than taps; spins only need engagement.
+export const TAP_ARC = 0.70;            // ±~40°
+export const HOLD_ARC = 0.95;           // ±~54°
+export const SLIDE_ARC = 1.05;          // ±~60° (the line is moving — be forgiving)
+export const PRESENCE_MAG = 0.42;       // stick must be deflected at least this much to "point"
+
+const TAP_WIN = WINDOWS.good + 0.02;    // half-window a tap is evaluable around its time
 
 /** Shortest absolute angle between two headings (radians, 0..π). */
-function angleGap(a, b) { let d = Math.abs(a - b) % (Math.PI * 2); return d > Math.PI ? Math.PI * 2 - d : d; }
+function angleGap(a, b) { return Math.abs(wrapPi(a - b)); }
 
 export class Scorer {
-  constructor() {
-    this.reset();
-  }
+  constructor() { this.reset(); }
 
   reset() {
     this.score = 0;
@@ -26,15 +38,13 @@ export class Scorer {
     this.maxCombo = 0;
     this.counts = { perfect: 0, good: 0, miss: 0 };
     this.totalJudged = 0;
-    // Feedback events for the renderer to consume (popups / flashes).
-    this.events = [];
+    this.events = [];   // judgement popups for the renderer to consume
   }
 
   /** Weighted accuracy 0..1 (Perfect = full, Good = third, Miss = 0). */
   get accuracy() {
     if (this.totalJudged === 0) return 1;
-    const got = this.counts.perfect * 1 + this.counts.good * (1 / 3);
-    return got / this.totalJudged;
+    return (this.counts.perfect + this.counts.good / 3) / this.totalJudged;
   }
 
   get grade() {
@@ -46,15 +56,13 @@ export class Scorer {
     return 'D';
   }
 
-  _comboMultiplier() {
-    // 1x up to 9 combo, +0.5 each 10, capped at 4x. Classic escalating reward.
-    return Math.min(4, 1 + Math.floor(this.combo / 10) * 0.5);
-  }
+  _comboMultiplier() { return Math.min(4, 1 + Math.floor(this.combo / 10) * 0.5); }
 
-  // Update counts/combo/score for a judged note (no feedback event emitted).
-  _score(judgement, note) {
+  /** Commit a final judgement for a note and emit a feedback event. */
+  _resolve(note, judgement, songTime) {
     note.judged = true;
     note.judgement = judgement;
+    note.lit = false;
     this.counts[judgement]++;
     this.totalJudged++;
     if (judgement === 'miss') {
@@ -63,68 +71,72 @@ export class Scorer {
       this.combo++;
       this.maxCombo = Math.max(this.maxCombo, this.combo);
       this.score += Math.round(SCORE[judgement] * this._comboMultiplier());
+      if (note.hold > 0) this.score += HOLD_BONUS;
     }
-  }
-
-  _apply(judgement, note, songTime) {
-    this._score(judgement, note);
-    this.events.push({ judgement, ring: note.ring, dir: note.dir, angle: note.angle, t: songTime });
+    this.events.push({ judgement, ring: note.ring, dir: note.dir, angle: noteTargetAngle(note, songTime), t: songTime });
   }
 
   /**
-   * Resolve a flick against the active notes. Returns the judgement string or null if the
-   * flick hit nothing. A flick counts if it lands within the note's ANGLE ARC (not an exact
-   * direction) on the same ring inside the timing window.
+   * Advance every active note one frame against the current stick state. This REPLACES the old
+   * discrete judgeFlick/updateHolds/checkMisses trio — notes resolve themselves when their window
+   * passes. `dt` is the elapsed song-seconds since last frame (for coverage accumulation).
    */
-  judgeFlick(flick, notes, songTime) {
-    let best = null, bestErr = Infinity;
+  update(notes, input, songTime, dt) {
     for (const n of notes) {
-      if (n.judged || n.holdActive || n.ring !== flick.ring) continue;
-      const err = Math.abs(flick.t - n.time);
-      if (err <= WINDOWS.good && angleGap(flick.angle, n.angle) <= HIT_ARC && err < bestErr) { best = n; bestErr = err; }
-    }
-    if (!best) return null;
+      if (n.judged) continue;
+      n.lit = false;
+      const s = n.ring === 'L' ? input.left : input.right;
+      const engaged = !!s && s.mag >= PRESENCE_MAG;
+      const sa = engaged ? Math.atan2(s.y, s.x) : 0;
+      const t0 = n.time, t1 = n.time + n.hold;
 
-    best.hitError = flick.t - best.time;
-    const modOk = best.mod ? flick.mods.includes(best.mod) : true;
-    if (!modOk) { this._apply('miss', best, songTime); return 'miss'; }
-
-    const judgement = bestErr <= WINDOWS.perfect ? 'perfect' : 'good';
-    if (best.hold > 0) {
-      best.holdActive = true;
-      best.headJudgement = judgement;
-      best.holdEnd = best.time + best.hold;
-      this.events.push({ judgement, ring: best.ring, dir: best.dir, angle: best.angle, t: songTime });
-      return judgement;
-    }
-    this._apply(judgement, best, songTime);
-    return judgement;
-  }
-
-  /** Advance active hold notes: complete at the end, break if the stick leaves the arc. */
-  updateHolds(notes, input, songTime) {
-    for (const n of notes) {
-      if (!n.holdActive) continue;
-      const held = input.heldDir(n.ring);
-      const keeping = held && angleGap(held.angle, n.angle) <= HOLD_ARC;
-      if (songTime >= n.holdEnd) {
-        n.holdActive = false;
-        this._score(n.headJudgement, n);
-        this.score += HOLD_BONUS;
-        this.events.push({ judgement: 'hold', ring: n.ring, dir: n.dir, angle: n.angle, t: songTime });
-      } else if (!keeping) {
-        n.holdActive = false;
-        const frac = (songTime - n.time) / n.hold;
-        this._apply(frac > 0.6 ? 'good' : 'miss', n, songTime);
+      if (n.type === 'tap') {
+        if (songTime < t0 - TAP_WIN) continue;
+        const err = songTime - t0;
+        const modOk = n.mod ? input.heldMods().includes(n.mod) : true;
+        if (engaged && modOk && angleGap(sa, n.angle) <= TAP_ARC) {
+          n.lit = true;
+          if (n.bestErr == null || Math.abs(err) < Math.abs(n.bestErr)) n.bestErr = err;
+          if (Math.abs(err) <= WINDOWS.perfect) { this._resolve(n, 'perfect', songTime); continue; }
+        }
+        if (songTime > t0 + TAP_WIN) {
+          this._resolve(n, n.bestErr == null ? 'miss' : Math.abs(n.bestErr) <= WINDOWS.perfect ? 'perfect' : 'good', songTime);
+        }
+        continue;
       }
-    }
-  }
 
-  /** Auto-miss any note whose Good window has fully passed (skip sustaining holds). */
-  checkMisses(notes, songTime) {
-    for (const n of notes) {
-      if (!n.judged && !n.holdActive && songTime - n.time > WINDOWS.good) {
-        this._apply('miss', n, songTime);
+      // sustained types share a lead-in so they light up just before the head
+      if (songTime < t0 - 0.10) continue;
+
+      if (n.type === 'spin') {
+        if (songTime >= t0 && songTime <= t1) {
+          if (engaged) {
+            if (n._prevA != null) n._spin += wrapPi(sa - n._prevA);
+            n._prevA = sa;
+            n.lit = true;
+            this.score += Math.round(SUSTAIN_RATE * dt);
+          } else { n._prevA = null; }
+          n.coverage = Math.min(1, Math.abs(n._spin) / (Math.PI * 2) / n.spinsNeed);
+        }
+        if (songTime > t1 + 0.06) this._resolve(n, n.coverage >= 0.95 ? 'perfect' : n.coverage >= 0.5 ? 'good' : 'miss', songTime);
+        continue;
+      }
+
+      // hold or slide: accrue on-target time against a (possibly moving) target angle
+      if (songTime >= t0 && songTime <= t1) {
+        const target = noteTargetAngle(n, songTime);
+        const arc = n.type === 'slide' ? SLIDE_ARC : HOLD_ARC;
+        const modOk = n.mod ? input.heldMods().includes(n.mod) : true;
+        if (engaged && modOk && angleGap(sa, target) <= arc) {
+          n.lit = true;
+          n._covered += dt;
+          this.score += Math.round(SUSTAIN_RATE * dt);
+        }
+        n.coverage = n.hold > 0 ? Math.min(1, n._covered / n.hold) : (n.lit ? 1 : 0);
+      }
+      if (songTime > t1 + 0.06) {
+        const cov = n.hold > 0 ? n._covered / n.hold : (n.lit ? 1 : 0);
+        this._resolve(n, cov >= 0.82 ? 'perfect' : cov >= 0.4 ? 'good' : 'miss', songTime);
       }
     }
   }

@@ -4,7 +4,7 @@ import { AudioEngine } from './audio.js';
 import { GamepadInput, BUTTON_LABELS } from './input.js';
 import { Renderer } from './render.js';
 import { Scorer } from './scoring.js';
-import { normalizeChart, angleVec } from './chart.js';
+import { normalizeChart, angleVec, noteTargetAngle } from './chart.js';
 import { generateBeatmap, chartToJSON } from './beatgen.js';
 
 const LEAD_IN = 3.0; // seconds of "3..2..1" count-in before the music
@@ -208,7 +208,10 @@ class Game {
     this.renderer.effects = [];
     this.renderer.flickFx = [];
     this.renderer.pulse = 0;
+    this.renderer.trail = { L: [], R: [] };
     this._ended = false;
+    this._lastSongTime = null;
+    this._demoDefl = { L: { v: { x: 0, y: 0 }, m: 0 }, R: { v: { x: 0, y: 0 }, m: 0 } };
     this.audio.stop();
     this.audio.resume();
     this.audio.start(this.chart.meta.bpm, LEAD_IN);
@@ -258,23 +261,37 @@ class Game {
   }
 
   // --- demo / attract auto-play -------------------------------------------
+  // Drives each faux stick toward the live target so the demo SHOWS the flow: it eases toward an
+  // approaching note, parks in the arc for taps/holds, traces the moving line of a slide, and
+  // whirls around for a spinner. Same presence-based scoring then "plays" it perfectly.
   _demoAutoplay(songTime) {
-    // decay the faux stick deflection, but HOLD it while a hold note is sustaining
-    for (const r of ['L', 'R']) {
-      const d = this._demoDefl[r];
-      if (d.until != null && songTime < d.until) d.m = 0.95;
-      else { d.m *= 0.80; d.until = null; }
+    for (const ring of ['L', 'R']) {
+      const tgt = this._demoStick(ring, songTime);
+      const d = this._demoDefl[ring];
+      if (tgt) { d.v = { x: tgt.x, y: tgt.y }; d.m = tgt.mag; }
+      else { d.m *= 0.82; }
+      const side = ring === 'L' ? 'left' : 'right';
+      this.input[side] = { x: d.v.x * d.m, y: d.v.y * d.m, mag: d.m };
     }
-    // fire a perfect flick for each note as its time arrives
+  }
+
+  /** Where the demo should aim a stick right now: {x,y,mag} unit-ish vector, or null to relax. */
+  _demoStick(ring, songTime) {
+    let best = null, bestDist = Infinity;
     for (const n of this.chart.notes) {
-      if (!n.judged && !n.holdActive && n.time <= songTime && n.time > songTime - 0.13) {
-        this.input.flicks.push({ ring: n.ring, dir: n.dir, angle: n.angle, mods: n.mod ? [n.mod] : [], mag: 1, t: n.time });
-        this._demoDefl[n.ring] = { v: angleVec(n.angle), m: 0.95, until: n.hold > 0 ? n.time + n.hold : null };
-      }
+      if (n.ring !== ring || n.judged) continue;
+      const t0 = n.time, t1 = n.time + n.hold;
+      const dist = songTime < t0 ? t0 - songTime : songTime > t1 ? songTime - t1 : 0;
+      if (dist < bestDist) { bestDist = dist; best = n; }
     }
-    const dot = (d) => ({ x: d.v.x * d.m, y: d.v.y * d.m, mag: d.m });
-    this.input.left = dot(this._demoDefl.L);
-    this.input.right = dot(this._demoDefl.R);
+    if (!best || bestDist > 0.7) return null;
+    let a;
+    if (best.type === 'spin') a = songTime * 14;                 // whirl to fill the gauge
+    else a = noteTargetAngle(best, songTime);                    // park / trace the (moving) target
+    const v = angleVec(a);
+    // full deflection inside the window, easing in as the note approaches
+    const mag = bestDist <= 0.16 ? 0.94 : Math.max(0.3, 0.94 - (bestDist - 0.16) * 1.1);
+    return { x: v.x, y: v.y, mag };
   }
 
   _updateHud(songTime) {
@@ -388,16 +405,15 @@ class Game {
 
     if (this.state === 'playing') {
       if (this.demo) this._demoAutoplay(songTime);
-      for (const f of this.input.takeFlicks()) {
-        this.renderer.addFlick(f);
-        this.scorer.judgeFlick(f, this.chart.notes, songTime);
-      }
-      this.scorer.updateHolds(this.chart.notes, this.input, songTime);
-      this.scorer.checkMisses(this.chart.notes, songTime);
+      // Frame-driven, presence-based scoring: notes resolve themselves as their window passes.
+      const dt = Math.max(0, Math.min(0.05, songTime - (this._lastSongTime ?? songTime)));
+      this._lastSongTime = songTime;
+      this.scorer.update(this.chart.notes, this.input, songTime, dt);
+      for (const f of this.input.takeFlicks()) this.renderer.addFlick(f); // little flick spark only
       for (const ev of this.scorer.takeEvents()) {
         this.renderer.addEffect(ev);
         if (ev.judgement === 'miss') this.audio.glitch();   // Guitar-Hero: miss glitches the mix
-        if (ev.judgement !== 'hold') this._flashJudge(ev.judgement);
+        this._flashJudge(ev.judgement);
       }
       this._updateHud(songTime);
       if (songTime > this.chart.duration) {

@@ -79,16 +79,38 @@ function pickAngle(i, ring) {
 
 const MOD_CYCLE = ['L1', 'R1', 'cross', 'circle', 'square', 'triangle'];
 
-/** Turn onset times into notes: ring/angle, varied button mods, and holds across big gaps. */
+/**
+ * Turn onset times into FLOW notes. Runs of tightly-spaced onsets become a slide (a line you
+ * trace); a long pause becomes a spinner; medium gaps become holds; the rest are presence taps.
+ * Hands alternate, and a continuous-angle pattern keeps the sticks moving so nothing feels static.
+ */
 function notesFromTimes(times) {
-  return times.map((t, i) => {
-    const ring = i % 2 === 0 ? 'L' : 'R';
-    const note = { time: +t.toFixed(3), ring, angle: pickAngle(i, ring) };
-    const gap = i < times.length - 1 ? times[i + 1] - t : 1;
-    if (i > 4 && gap > 0.8 && i % 4 === 0) note.hold = +Math.min(gap * 0.5, 1.2).toFixed(3);
-    if (i > 6 && i % 9 === 4) note.mod = MOD_CYCLE[(i / 9 | 0) % MOD_CYCLE.length]; // integrate buttons
-    return note;
-  });
+  const out = [];
+  let i = 0, k = 0;
+  while (i < times.length) {
+    const t = times[i];
+    const gapNext = i < times.length - 1 ? times[i + 1] - t : 1.5;
+    const ring = k % 2 === 0 ? 'L' : 'R';
+
+    // run of tight onsets -> a slide that sweeps across the dial
+    let j = i;
+    while (j + 1 < times.length && times[j + 1] - times[j] < 0.30) j++;
+    if (j - i + 1 >= 3) {
+      out.push({ time: +t.toFixed(3), ring, angle: pickAngle(k, ring), to: pickAngle(k + (j - i + 1), ring), hold: +(times[j] - t).toFixed(3) });
+      i = j + 1; k++; continue;
+    }
+    // long pause -> a spinner to fill it (sparingly)
+    if (gapNext > 1.4 && k > 6 && k % 6 === 0) {
+      out.push({ time: +t.toFixed(3), ring, angle: pickAngle(k, ring), spin: 2, hold: +Math.min(gapNext * 0.7, 1.4).toFixed(3) });
+      i++; k++; continue;
+    }
+    // medium gap -> a hold; otherwise a tap (with the occasional button modifier)
+    const note = { time: +t.toFixed(3), ring, angle: pickAngle(k, ring) };
+    if (k > 4 && gapNext > 0.8 && k % 4 === 0) note.hold = +Math.min(gapNext * 0.5, 1.0).toFixed(3);
+    else if (k > 6 && k % 9 === 4) note.mod = MOD_CYCLE[(k / 9 | 0) % MOD_CYCLE.length];
+    out.push(note); i++; k++;
+  }
+  return out;
 }
 
 /** Straight beat grid (fallback / placeholder), notes every `subdiv`-th beat. */

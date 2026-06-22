@@ -1,14 +1,18 @@
 # DESIGN.md — CHUMSTICK RHYTHM
 
-> A rhythm game you play by **flicking the two analog sticks** of a DualSense / DualShock
-> controller in time with the music. Left stick drives the **left ring**, right stick drives
-> the **right ring**. Notes approach each ring; you flick the matching stick in the required
-> direction on the beat. Modifier buttons add variation.
+> A rhythm game you play by **flowing the two analog sticks** of a DualSense / DualShock
+> controller in time with the music. Left stick drives the **left speaker**, right stick the
+> **right**. Each stick is an **absolute cursor inside a disc**, so scoring is *continuous and
+> presence-based*: **be on** a note as it crosses, **trace** the lines that sweep around the rim,
+> and **spin** to fill a gauge. Modifier buttons add variation.
 >
-> **Theme: a boombox.** The two rings are the boombox's **left and right speakers** (cyan L,
-> magenta R). The HUD sits in the center like a **cassette deck** — combo, score, accuracy, and
-> two reels that spin faster as your combo climbs; VU meters flank the speakers and bounce on
-> hits. Retro neon over a dark stage.
+> **Theme: a front-facing stereo on the sea.** The two rings are the stereo's **left and right
+> speakers** (cyan L, Grooveshark-blue R), each with a real **thumbstick at its hub** that tracks
+> your stick and leaves a glowing **trail** of the line you're drawing. A shark cruises the blue
+> sky behind. Calm and flowy over a dark stage — deliberately *not* in-your-face neon.
+>
+> *(History: this started as a discrete "flick to the beat" game with a boombox/3D theme. Both
+> were dropped — flicks played clunky, so the input model became continuous flow; see §3.)*
 
 ---
 
@@ -37,11 +41,13 @@ novel space.
 
 ## 2. What's genuinely novel here
 
-1. **The stick is the instrument.** Not a cursor, not a camera — a flick *is* the note hit.
-   Analog magnitude + direction + timing all carry meaning.
-2. **Two-hand directional polyrhythm.** Left and right rings can demand different directions
-   on different subdivisions, so you're playing a two-limb directional pattern — closer to
-   drumming than to tapping.
+1. **The stick is the instrument, played by flow.** Not a cursor, not a camera, and *not* a
+   discrete flick — the stick's **absolute position over time** is the note hit. Where you point,
+   how you trace, and how you spin all carry meaning; you're rewarded for *being on it*, not for
+   snapping. This is what makes it feel fluid instead of clunky.
+2. **Two-hand polyrhythm of lines.** Left and right speakers can demand different headings, traces
+   and spins on different subdivisions, so you're drawing a two-limb pattern of moving lines —
+   closer to conducting/drawing than to tapping.
 3. **Native controller, zero install.** Runs in any browser via the Gamepad API; the DualSense
    "just works" over USB/Bluetooth. OBS-overlay friendly for streaming.
 4. **Analog nuance is available** for later: flick *strength*, return-flicks, rotations
@@ -49,38 +55,45 @@ novel space.
 
 ---
 
-## 3. Core mechanics (prototype scope)
+## 3. Core mechanics — the flow model
 
-### Rings & sticks
-- **Left ring** ← left stick (`axes[0]` = X, `axes[1]` = Y).
-- **Right ring** ← right stick (`axes[2]` = X, `axes[3]` = Y).
-- Each ring has 8 directional slots: `up, down, left, right` + 4 diagonals.
+### Speakers & sticks
+- **Left speaker** ← left stick (`axes[0]` = X, `axes[1]` = Y).
+- **Right speaker** ← right stick (`axes[2..]`, with DualSense's non-standard layout handled).
+- A note's target is a **continuous angle** on the rim (0=right, 90=down, …), not one of 8 slots.
+  You point *within a forgiving arc* of it — flow over precision.
 
-### A flick
-A flick is a **gesture**, detected with a hysteresis state machine per stick:
-1. Stick rests inside the **deadzone** → *armed*.
-2. Stick magnitude crosses the **flick threshold** (≈0.55) → fire a flick event; the
-   **direction is the angle at the crossing**, snapped to the nearest of 8.
-3. Stick must fall back below the **release threshold** (≈0.35) before it can fire again.
+### Presence, not a press
+There is **no discrete flick event** driving gameplay. Every frame, for each live note, we ask:
+*is the stick where this note wants it?* (deflected past a small magnitude, and its heading within
+the note's arc). Credit **accrues from being on it**, and the note resolves itself when its window
+passes. The whole judge is `Scorer.update(notes, input, songTime, dt)` — frame-driven, off the
+audio clock. (A leftover hysteresis flick detector survives only to throw a tiny visual spark.)
 
-This yields exactly one clean flick per physical motion and ignores slow drift.
+### The four note types
+- **tap** — *be in the arc as the note crosses.* Graded by how centred your on-target moment was
+  (Perfect ±50 ms, else Good); never on it in-window → Miss. No timed press.
+- **hold** — *park the stick in the arc* for `hold` seconds. Graded by **coverage** (fraction of
+  the span you were on target).
+- **slide** — a target **sweeps along the rim** from `angle` to `to` over `hold`; you **trace the
+  line**. Graded by coverage of the moving target. The staple note — this is the "draw a line" feel.
+- **spin** — *rotate the stick* for the span; accumulated rotation fills a gauge to `spin` turns.
+  Graded by rotations completed.
 
-### Notes
-A note approaches its ring as a **chevron travelling inward along its flick direction**, with an
-osu!-style **approach ring** shrinking onto the target. It arrives at the ring edge exactly at
-its hit time. You flick that stick in that direction at that moment.
+Holds/slides/spins also drip score while satisfied, and light up (plus the stick trail) so motion
+reads continuously.
 
 ### Modifiers
-A note may carry a `mod` requiring a button to be **held** (or pressed) during the flick:
+A note may carry a `mod` requiring a button **held** while you're on it:
 - `L1` / `R1` (shoulder), `L2` / `R2` (trigger), or face buttons `cross/circle/square/triangle`.
-- Modifier notes are visually distinct (outline + glyph). Hitting without the modifier = miss.
+- Modifier notes are visually distinct (glyph on the rim). On-target without the modifier ≠ credit.
 
-### Judgement & scoring (osu/DDR-style)
-- **Perfect** ±45 ms, **Good** ±90 ms, else **Miss**. (Tunable in `scoring.js`.)
-- Wrong direction or wrong modifier inside the window = **Miss** (consumes the note).
-- **Combo** builds on Perfect/Good, resets on Miss.
-- **Score** = per-note base × accuracy weight × combo multiplier.
+### Scoring (osu/DDR-flavoured)
+- **Perfect / Good / Miss** per note (windows + coverage thresholds tunable in `scoring.js`).
+- **Combo** builds on Perfect/Good, resets on Miss; multiplier escalates with combo.
+- **Score** = per-note base × combo multiplier (+ sustain drip + hold bonus).
 - **Accuracy %** and a letter **grade** (S/A/B/C/D) on the results screen.
+- **A miss glitches the music** (stutter + pitch wobble + buzz) — the song is the feedback.
 
 ---
 
@@ -114,13 +127,17 @@ JSON. See `beatmaps/raise-your-weapon.json` and the README for the full spec.
     "difficulty": "Normal"
   },
   "notes": [
-    { "time": 2.07, "ring": "L", "dir": "up" },
-    { "time": 2.41, "ring": "R", "dir": "right", "mod": "L1" }
+    { "time": 2.07, "ring": "L", "angle": 270 },                       // tap
+    { "time": 2.41, "ring": "R", "angle": 0, "mod": "L1" },            // tap + modifier
+    { "time": 3.10, "ring": "L", "angle": 90, "hold": 0.5 },           // hold
+    { "time": 4.00, "ring": "R", "angle": 0, "to": 200, "hold": 1.0 }, // slide (traced line)
+    { "time": 6.00, "ring": "L", "angle": 0, "spin": 2, "hold": 1.3 }  // spinner
   ]
 }
 ```
 
-`dir` ∈ `up,down,left,right,upleft,upright,downleft,downright`.
+`angle` = degrees (continuous; legacy named `dir` ∈ `up,down,left,…` still parses).
+`hold` = sustain seconds · `to` = slide end heading · `spin` = spinner rotations.
 `mod` (optional) ∈ `L1,R1,L2,R2,cross,circle,square,triangle`.
 
 ### Auto-charting
@@ -129,15 +146,21 @@ JSON. See `beatmaps/raise-your-weapon.json` and the README for the full spec.
   musical hits.
 - **BPM estimate** via autocorrelation of the onset envelope (shown to the player; used for the
   grid fallback).
-- Rings/directions assigned by a deterministic choreographed pattern; sparse modifier notes.
-- Output is the same JSON, ready to hand-tune.
+- Notes are choreographed into **flow**: runs of tight onsets → slides, long gaps → spinners,
+  medium gaps → holds, the rest presence taps; hands alternate; angle drifts so nothing is static.
+- Output is the same JSON, ready to hand-tune. `scripts/flowify.mjs` did the same transform on the
+  base chart (sparse onsets → a continuous slide-path) without moving any onset time.
 
 ---
 
-## 6. Out of scope for the prototype (future)
+## 6. Done since the prototype / still future
 
-- Flick *strength* / partial-hit scoring, return-flicks, stick **rotations** (flick-stick-style
-  spin notes), and **hold** notes.
+**Landed:** continuous **flow** input (presence/coverage, no discrete flick), **hold / slide /
+spin** note types, a stick **trail**, miss-glitches-the-music audio, onset auto-charting that
+emits flow, and a synth groove when no audio file is present.
+
+**Still future:**
 - Haptics / adaptive triggers (DualSense exposes these only partially to the browser).
-- Online leaderboards, replay export, chart editor UI, song library management.
+- Difficulty tiers, online leaderboards, replay export, a chart-editor UI, song library management.
+- Calibration (audio/video offset), per-stick sensitivity settings.
 - Lane-based "stream" sections and boss-style intensity ramps.

@@ -2,8 +2,9 @@
 
 > A **dual-analog-stick rhythm game** for the DualSense / DualShock — a play on *thumbstick*
 > rhythm. It's a front-facing **stereo**: two speakers, each with a real analog **thumbstick in
-> the centre**. Notes sweep in 360° around each speaker; **flick the matching stick toward them
-> on the beat**. Land them and the song plays clean — **miss and the audio glitches**, Guitar-Hero
+> the centre**. Each stick is an **absolute cursor inside a disc**, so it's about **flow, not
+> taps**: *be on* a note as it crosses, **trace the lines** that sweep around the rim, and **spin**
+> to fill a gauge. Keep up and the song plays clean — **slip and the audio glitches**, Guitar-Hero
 > style. Grooveshark-blue, with a shark cruising the sky. Pure **Web Audio + Canvas**, no plugins,
 > runs in a browser tab.
 
@@ -17,17 +18,22 @@
 
 ## What it is
 
-Most rhythm games are about *buttons*. This one is about the **sticks**. Each speaker is a 360°
-dial with a real thumbstick at its hub; a note lights a point on the rim and you **flick the stick
-that way, on time**. Two hands, two sticks, eight-plus directions, holds, and modifier buttons.
+Most rhythm games are about *buttons*. This one is about the **sticks** — and it reads the stick
+as what it physically is: an **absolute analog position** inside a disc. So scoring is
+**continuous and presence-based**, judged every frame, not a discrete press. Four note types:
 
-The clever bit is the audio: the track just **plays through**. Nail your flicks and it stays clean
-— **whiff one and the mix stutters, pitch-bends and buzzes** for a beat. The song is the reward and
-the punishment.
+- **be-there taps** — be in the note's arc *as it crosses*; no timed press.
+- **holds** — park the stick in the arc and keep it there.
+- **slides** — a target sweeps along the rim; **trace the line** with the stick (the staple).
+- **spinners** — *rotate* the stick to fill a gauge (osu-style).
 
-> Why it's new: flick-stick aiming, directional rhythm (DDR), and two-handed directional hits
-> (Beat Saber) all exist — but nobody's made a rhythm game whose **core input is flicking two
-> analog sticks to the beat**. See [`DESIGN.md`](DESIGN.md) for the landscape + design notes.
+Two hands, two speakers, near-continuous motion. The clever bit is the audio: the track just
+**plays through**. Keep up and it stays clean — **slip and the mix stutters, pitch-bends and
+buzzes** for a beat. The song is the reward and the punishment.
+
+> Why it's new: flow aiming, directional rhythm (DDR), spinners/sliders (osu, maimai), and
+> two-handed hits (Beat Saber) all exist — but nobody's made a rhythm game whose **core input is
+> flowing two analog sticks** along lines and arcs. See [`DESIGN.md`](DESIGN.md) for the notes.
 
 ---
 
@@ -55,9 +61,12 @@ only confirms/cancels menus.
 ### Controls
 | Input | Action |
 | --- | --- |
-| **Left stick** | Flick toward **left-speaker** notes — any angle into the note's **arc** (a forgiving range, not an exact spot) |
-| **Right stick** | Flick toward **right-speaker** notes |
-| **Hold notes** | Flick and *keep* the stick there for the note's length |
+| **Left stick** | Ride **left-speaker** notes — point into the note's **arc** (a forgiving range, not an exact spot) |
+| **Right stick** | Ride **right-speaker** notes |
+| **Taps** | Just *be in the arc* as the note crosses — no timed press |
+| **Holds** | Park the stick in the arc and keep it there |
+| **Slides** | Trace the moving line as it sweeps around the rim |
+| **Spinners** | Rotate the stick to fill the gauge |
 | **L1 / R1 / face buttons** | Held for **modifier** notes |
 | **L2 + R2** | Start (on the splash) |
 | **Options / ✕** confirm · **◯ / Esc** | back / pause |
@@ -87,18 +96,23 @@ Plain JSON (full spec in [`DESIGN.md`](DESIGN.md#5-beatmap-format)):
     "difficulty": "Onset"
   },
   "notes": [
-    { "time": 2.13, "ring": "L", "angle": 300 },
-    { "time": 3.20, "ring": "R", "angle": 90, "mod": "L1" },
-    { "time": 7.55, "ring": "L", "angle": 188, "hold": 0.46 }
+    { "time": 2.13, "ring": "L", "angle": 300 },                      // tap: be in the arc
+    { "time": 3.20, "ring": "R", "angle": 90, "mod": "L1" },          // tap + held modifier
+    { "time": 7.55, "ring": "L", "angle": 188, "hold": 0.46 },        // hold: park & keep
+    { "time": 9.10, "ring": "R", "angle": 0, "to": 180, "hold": 0.9 },// slide: trace 0°→180°
+    { "time": 12.4, "ring": "L", "angle": 0, "spin": 2, "hold": 1.4 } // spinner: 2 rotations
   ]
 }
 ```
 
 - `ring` — `"L"` or `"R"`
-- `angle` — degrees, **0 = right, 90 = down, 180 = left, 270 = up** (continuous; flick within a
+- `angle` — degrees, **0 = right, 90 = down, 180 = left, 270 = up** (continuous; ride within a
   forgiving arc). *Legacy:* a named `dir` (`up/down/left/right/+diagonals`) still works.
+- `hold` *(optional)* — seconds to keep the stick in the arc (a **hold**)
+- `to` *(optional)* — slide end heading in degrees; the target sweeps `angle → to` over `hold`
+  (a **slide** — the line you trace)
+- `spin` *(optional)* — full rotations to clear a **spinner** (needs a `hold` span; defaults ~1.2s)
 - `mod` *(optional)* — `L1 · R1 · L2 · R2 · cross · circle · square · triangle`
-- `hold` *(optional)* — seconds to keep the stick held
 
 ---
 
@@ -115,14 +129,17 @@ was generated from the real song's **onsets**, so notes land on the actual beats
 
 Vanilla **JavaScript + HTML5 Canvas + Web Audio API** — no framework, no build step, near-zero
 deps. Timing is driven entirely off `AudioContext.currentTime` (never `setTimeout`) for
-sample-accurate sync. Input is the **Gamepad API**, polled once per frame, with a hysteresis
-flick detector + a stick deadzone. OBS-overlay friendly.
+sample-accurate sync. Input is the **Gamepad API**, polled once per frame; scoring is
+**frame-driven and presence-based** (be-on-it / trace / spin), not a discrete press. OBS-overlay
+friendly.
 
 ```
 index.html · styles.css
-src/        ES modules — audio (clock + groove + glitch), input (gamepad/flicks),
-            chart, scoring (incl. holds), render (the stereo), beatgen (auto-charting), main
+src/        ES modules — audio (clock + groove + glitch), input (gamepad position),
+            chart (note types + target math), scoring (presence/coverage), render (the stereo +
+            stick trail), beatgen (auto-charting), main
 beatmaps/   committed chart JSON (no audio)
+scripts/    flowify (base-chart builder) + headless node tests (sim, render smoke)
 brand/      the chum logo
 assets/     drop local audio here (gitignored)
 ```

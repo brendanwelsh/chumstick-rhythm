@@ -46,6 +46,27 @@ export function dirVector(dir) {
 /** Unit vector for a continuous angle (radians, screen space y-down). */
 export function angleVec(a) { return { x: Math.cos(a), y: Math.sin(a) }; }
 
+/** Wrap an angle delta into (-π, π]. */
+export function wrapPi(d) {
+  d = ((d + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI;
+  return d;
+}
+
+/** Interpolate between two headings along the SHORTEST arc (u in 0..1). */
+export function lerpAngle(a, b, u) { return a + wrapPi(b - a) * Math.max(0, Math.min(1, u)); }
+
+/**
+ * The angle a note's target occupies at song time `t`. Stationary for tap/hold/spin; for a
+ * SLIDE it sweeps from `angle` to `angleTo` across the note's hold span (this is the "line" the
+ * player traces). Shared by scoring, rendering and the demo so they always agree.
+ */
+export function noteTargetAngle(note, t) {
+  if (note.type === 'slide' && note.hold > 0) {
+    return lerpAngle(note.angle, note.angleTo, (t - note.time) / note.hold);
+  }
+  return note.angle;
+}
+
 /** Human label for a direction (used in debug / fallback rendering). */
 export function dirArrowAngle(dir) {
   const v = dirVector(dir);
@@ -72,20 +93,39 @@ export function normalizeChart(raw) {
       const angle = (n.angle != null && isFinite(n.angle))
         ? (Number(n.angle) * Math.PI) / 180
         : Math.atan2(DIR_VECTORS[baseDir].y, DIR_VECTORS[baseDir].x);
+
+      // --- note vocabulary (flow model) -----------------------------------
+      // spin: rotate the stick to fill a gauge.   slide: trace a moving target along the ring.
+      // hold: keep the stick parked in the arc.    tap: just BE in the arc as it crosses.
+      const isSpin = n.spin === true || (Number(n.spin) || 0) > 0;
+      const hasTo = n.to != null && isFinite(n.to);
+      let hold = Math.max(0, Number(n.hold) || 0);
+      if (isSpin && hold <= 0) hold = 1.2;             // spinners need a span; default ~1 bar-ish
+      const type = isSpin ? 'spin' : hasTo ? 'slide' : hold > 0 ? 'hold' : 'tap';
+      const angleTo = hasTo ? (Number(n.to) * Math.PI) / 180 : angle;
+      const spins = Number(n.spin) || 0;
+      const spinsNeed = type === 'spin' ? (spins > 0 ? spins : Math.max(2, Math.round(hold * 2))) : 0;
+
       return {
         id: i,
         time: Number(n.time) + offset,
         ring,
+        type,
         angle,
+        angleTo,                                       // slide end heading (== angle otherwise)
         dir: vectorToDir(Math.cos(angle), Math.sin(angle)),
         mod,
-        hold: Math.max(0, Number(n.hold) || 0), // seconds to keep the stick held; 0 = tap flick
-        // runtime state:
+        hold,                                          // sustain seconds (0 = instantaneous tap)
+        spinsNeed,                                     // full rotations to clear a spinner
+        // runtime state (frame-driven presence/coverage scoring):
         judged: false,
         judgement: null,  // 'perfect' | 'good' | 'miss'
-        hitError: 0,       // seconds (signed) between flick and target
-        holdActive: false, // head hit, currently sustaining
-        headJudgement: null,
+        lit: false,        // stick is satisfying this note THIS frame (drives live FX)
+        coverage: 0,       // 0..1 fraction of the span satisfied (hold/slide/spin)
+        bestErr: null,     // signed timing error of the best on-target moment (taps)
+        _covered: 0,       // accumulated on-target seconds (hold/slide)
+        _spin: 0,          // accumulated signed rotation radians (spin)
+        _prevA: null,      // previous stick angle, for spin delta integration
       };
     })
     .sort((a, b) => a.time - b.time);

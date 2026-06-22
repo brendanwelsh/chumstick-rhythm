@@ -3,9 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "CHUMSTICK RHYTHM — dual-analog-stick rhythm game (DualSense). Flick the sticks to the beat. Vanilla JS + Canvas + Web Audio. No build step.",
+  "description": "CHUMSTICK RHYTHM — dual-analog-stick rhythm game (DualSense). Flow the sticks: be-on-it taps, traced slides, spinners. Vanilla JS + Canvas + Web Audio. No build step.",
   "scripts": {
-    "start": "npx --yes serve ."
+    "start": "npx --yes serve .",
+    "test": "node scripts/sim.test.mjs && node scripts/render.smoke.mjs"
   },
   "license": "UNLICENSED"
 }

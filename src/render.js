@@ -8,8 +8,8 @@
 //
 // API: new Renderer(canvas) · drawGame(state) · addEffect(e) · addFlick(f) · .effects .flickFx .pulse
 
-import { dirVector, angleVec, MODS } from './chart.js';
-import { HIT_ARC } from './scoring.js';
+import { dirVector, angleVec, wrapPi, noteTargetAngle, MODS } from './chart.js';
+import { TAP_ARC } from './scoring.js';
 
 const COL = {
   L: '#36d6f5', R: '#2b9fda',                 // cyan + Grooveshark blue
@@ -31,6 +31,7 @@ export class Renderer {
     this.pulse = 0;
     this.glitch = 0;
     this._t = 0;
+    this.trail = { L: [], R: [] };   // recent stick-cap positions per ring (the "drawn line")
     this.logo = new Image();
     this._logoReady = false;
     this.logo.onload = () => { this._logoReady = true; };
@@ -88,6 +89,7 @@ export class Renderer {
       this._soundWaves(ring);
       this._speaker(ring);
       if (chart) this._notes(ring, chart, songTime);
+      this._trail(ring, input);
       this._thumbstick(ring, input);
       this._effects(ring, songTime);
     }
@@ -207,39 +209,147 @@ export class Renderer {
     }
   }
 
-  // Notes slide IN from a long runway toward the speaker at a continuous ANGLE. The hittable
-  // RANGE is drawn as a glowing ARC on the rim — flick anywhere into that arc to land it.
+  // Notes draw per TYPE. They approach along a runway, then become "live" on the rim. Nothing is
+  // a discrete press — you're scored for BEING in the arc / TRACING the line / SPINNING, so the
+  // visuals show a target to ride into, and light up while your stick is satisfying them.
   _notes(ring, chart, songTime) {
-    const { ctx } = this;
     const sp = this.speakers[ring];
-    const runway = sp.r * 3.4;
     for (const n of chart.notes) {
       if (n.ring !== ring || n.judged) continue;
       const dt = n.time - songTime;
-      if (dt > chart.meta.approachTime || dt < -0.16) continue;
-      const v = angleVec(n.angle);
-      const p = Math.max(0, Math.min(1, 1 - dt / chart.meta.approachTime));
-      const dist = sp.r + runway * (1 - p);
-      const x = sp.x + v.x * dist, y = sp.y + v.y * dist;
-      const c = ringColor(ring);
-      const near = Math.abs(dt) < 0.1;
+      if (dt > chart.meta.approachTime || songTime > n.time + n.hold + 0.2) continue;
+      const p = Math.max(0, Math.min(1, 1 - dt / chart.meta.approachTime)); // 0 far → 1 at the rim
+      if (n.type === 'spin') this._noteSpin(sp, n, songTime, p);
+      else if (n.type === 'slide') this._noteSlide(sp, n, songTime, p);
+      else if (n.type === 'hold') this._noteHold(sp, n, songTime, p);
+      else this._noteTap(sp, n, songTime, p, dt);
+      if (n.mod) this._modGlyph(sp, n, p);
+    }
+  }
 
-      // the hittable arc (range) on the rim
+  // A point on the rim for a given heading, plus the runway position (outside, sliding in).
+  _rimPt(sp, a, frac = 1) { const v = angleVec(a); return { x: sp.x + v.x * sp.r * frac, y: sp.y + v.y * sp.r * frac }; }
+  _runwayPt(sp, a, p) { const v = angleVec(a); const d = sp.r + sp.r * 3.2 * (1 - p); return { x: sp.x + v.x * d, y: sp.y + v.y * d }; }
+
+  // Glowing arc segment on the rim, centred on `a` spanning ±span. `lit` brightens it.
+  _rimArc(sp, a, span, col, alpha, width, lit) {
+    const { ctx } = this;
+    ctx.save(); ctx.beginPath(); ctx.lineCap = 'round';
+    if (lit) { ctx.shadowColor = '#fff'; ctx.shadowBlur = 16; }
+    ctx.arc(sp.x, sp.y, sp.r, a - span, a + span);
+    ctx.strokeStyle = this._alpha(lit ? '#ffffff' : col, alpha); ctx.lineWidth = width; ctx.stroke();
+    ctx.restore();
+  }
+
+  _noteTap(sp, n, songTime, p, dt) {
+    const { ctx } = this;
+    const c = ringColor(n.ring);
+    const near = Math.abs(dt) < 0.12;
+    // hittable arc on the rim (the range — be anywhere in here as it crosses)
+    this._rimArc(sp, n.angle, TAP_ARC, c, (near ? 0.95 : 0.4) * Math.min(1, p * 2), sp.r * (near ? 0.2 : 0.11), n.lit);
+    // chevron sliding in toward the hub, pointing the push direction
+    const rp = this._runwayPt(sp, n.angle, p);
+    ctx.save(); ctx.translate(rp.x, rp.y); ctx.rotate(n.angle + Math.PI);
+    ctx.globalAlpha = Math.min(1, p * 2 + 0.2);
+    ctx.shadowColor = c; ctx.shadowBlur = 12; ctx.fillStyle = n.lit ? '#ffffff' : near ? '#fff' : c;
+    const s = sp.r * 0.32;
+    ctx.beginPath(); ctx.moveTo(s, 0); ctx.lineTo(-s * 0.55, -s * 0.7); ctx.lineTo(-s * 0.2, 0); ctx.lineTo(-s * 0.55, s * 0.7); ctx.closePath(); ctx.fill();
+    ctx.restore(); ctx.globalAlpha = 1;
+  }
+
+  _noteHold(sp, n, songTime, p) {
+    const c = ringColor(n.ring);
+    // base arc (where to park), thicker; a brighter overlay fills with coverage
+    this._rimArc(sp, n.angle, TAP_ARC, c, 0.30 * Math.min(1, p * 2), sp.r * 0.16, false);
+    if (n.coverage > 0) this._rimArc(sp, n.angle, TAP_ARC * n.coverage, c, 0.9, sp.r * 0.2, n.lit);
+    // a marker sliding in before the head
+    if (songTime < n.time) {
+      const rp = this._runwayPt(sp, n.angle, p);
+      this._dot(rp.x, rp.y, sp.r * 0.16, n.lit ? '#fff' : c, Math.min(1, p * 2));
+    }
+  }
+
+  _noteSlide(sp, n, songTime, p) {
+    const { ctx } = this;
+    const c = ringColor(n.ring);
+    const a0 = n.angle, a1 = n.angleTo, sweep = wrapPi(a1 - a0);
+    // the full line to trace, faint, just inside the rim
+    ctx.save(); ctx.beginPath(); ctx.lineCap = 'round';
+    ctx.arc(sp.x, sp.y, sp.r * 0.92, a0, a0 + sweep, sweep < 0);
+    ctx.strokeStyle = this._alpha(c, 0.28 * Math.min(1, p * 2)); ctx.lineWidth = sp.r * 0.13; ctx.stroke();
+    // covered portion brightens as you trace it
+    const u = Math.max(0, Math.min(1, (songTime - n.time) / n.hold));
+    if (u > 0) {
       ctx.beginPath(); ctx.lineCap = 'round';
-      ctx.arc(sp.x, sp.y, sp.r, n.angle - HIT_ARC, n.angle + HIT_ARC);
-      ctx.strokeStyle = this._alpha(near ? '#ffffff' : c, (near ? 0.95 : 0.4) * Math.min(1, p * 2));
-      ctx.lineWidth = sp.r * (near ? 0.18 : 0.11); ctx.stroke();
-      ctx.lineCap = 'butt';
+      ctx.arc(sp.x, sp.y, sp.r * 0.92, a0, a0 + sweep * u, sweep < 0);
+      ctx.strokeStyle = this._alpha(n.lit ? '#ffffff' : c, 0.85); ctx.lineWidth = sp.r * 0.16; ctx.stroke();
+    }
+    ctx.restore();
+    // moving head you chase
+    const head = noteTargetAngle(n, songTime);
+    const onRim = songTime >= n.time;
+    const hp = onRim ? this._rimPt(sp, head, 0.92) : this._runwayPt(sp, a0, p);
+    this._dot(hp.x, hp.y, sp.r * 0.2, n.lit ? '#fff' : c, 1);
+  }
 
-      // travelling marker: a chevron pointing toward the speaker (the push direction)
-      ctx.save(); ctx.translate(x, y); ctx.rotate(n.angle + Math.PI);
-      ctx.globalAlpha = Math.min(1, p * 2 + 0.2);
-      ctx.shadowColor = c; ctx.shadowBlur = 12; ctx.fillStyle = near ? '#ffffff' : c;
-      const s = sp.r * 0.32;
-      ctx.beginPath(); ctx.moveTo(s, 0); ctx.lineTo(-s * 0.55, -s * 0.7); ctx.lineTo(-s * 0.2, 0); ctx.lineTo(-s * 0.55, s * 0.7); ctx.closePath(); ctx.fill();
-      ctx.restore(); ctx.globalAlpha = 1;
+  _noteSpin(sp, n, songTime, p) {
+    const { ctx } = this;
+    const c = ringColor(n.ring);
+    const live = songTime >= n.time;
+    const R = sp.r * 1.18;
+    // gauge ring
+    ctx.save();
+    ctx.beginPath(); ctx.arc(sp.x, sp.y, R, 0, Math.PI * 2);
+    ctx.strokeStyle = this._alpha(c, (live ? 0.4 : 0.2) * Math.min(1, p * 2)); ctx.lineWidth = sp.r * 0.12; ctx.stroke();
+    if (n.coverage > 0) {
+      ctx.beginPath(); ctx.lineCap = 'round';
+      ctx.arc(sp.x, sp.y, R, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * n.coverage);
+      ctx.strokeStyle = this._alpha(n.lit ? '#fff' : c, 0.95); ctx.lineWidth = sp.r * 0.16; ctx.stroke();
+    }
+    // rotating "SPIN" arrows
+    const spin = this._t * (live ? 6 : 2);
+    ctx.translate(sp.x, sp.y); ctx.rotate(spin);
+    ctx.fillStyle = this._alpha(n.lit ? '#fff' : c, 0.9);
+    for (let k = 0; k < 3; k++) {
+      ctx.rotate((Math.PI * 2) / 3);
+      ctx.beginPath(); ctx.moveTo(R * 0.86, 0); ctx.lineTo(R * 0.7, -sp.r * 0.12); ctx.lineTo(R * 0.7, sp.r * 0.12); ctx.closePath(); ctx.fill();
+    }
+    ctx.restore();
+    if (live) { ctx.fillStyle = this._alpha('#fff', 0.8); ctx.font = `800 ${sp.r * 0.3}px system-ui`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('SPIN', sp.x, sp.y - sp.r * 1.55); }
+  }
 
-      if (n.mod) { ctx.fillStyle = '#fff'; ctx.font = `700 ${sp.r * 0.34}px system-ui`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(MODS[n.mod] || n.mod, x, y - sp.r * 0.5); }
+  _modGlyph(sp, n, p) {
+    const { ctx } = this;
+    const rp = this._rimPt(sp, n.angle, 1.35);
+    ctx.globalAlpha = Math.min(1, p * 2);
+    ctx.fillStyle = '#fff'; ctx.font = `700 ${sp.r * 0.32}px system-ui`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(MODS[n.mod] || n.mod, rp.x, rp.y);
+    ctx.globalAlpha = 1;
+  }
+
+  _dot(x, y, r, col, alpha) {
+    const { ctx } = this;
+    ctx.save(); ctx.shadowColor = col; ctx.shadowBlur = 12;
+    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fillStyle = this._alpha(col, alpha); ctx.fill(); ctx.restore();
+  }
+
+  // The "drawn line": a fading trail of recent stick-cap positions — motion you can see.
+  _trail(ring, input) {
+    const { ctx } = this;
+    const sp = this.speakers[ring];
+    const s = input ? (ring === 'L' ? input.left : input.right) : { x: 0, y: 0, mag: 0 };
+    const maxOff = sp.r * 0.34;
+    const buf = this.trail[ring];
+    buf.push({ x: sp.x + (s.x || 0) * maxOff, y: sp.y + (s.y || 0) * maxOff, m: s.mag || 0 });
+    if (buf.length > 18) buf.shift();
+    const c = ringColor(ring);
+    for (let i = 1; i < buf.length; i++) {
+      const a = (i / buf.length);
+      const m = Math.max(buf[i].m, buf[i - 1].m);
+      if (m < 0.05) continue;
+      ctx.beginPath(); ctx.moveTo(buf[i - 1].x, buf[i - 1].y); ctx.lineTo(buf[i].x, buf[i].y);
+      ctx.strokeStyle = this._alpha(c, a * 0.5 * m); ctx.lineWidth = sp.r * 0.16 * a; ctx.lineCap = 'round'; ctx.stroke();
     }
   }
 
