@@ -70,7 +70,8 @@ export class Renderer {
 
   // --- scene setup --------------------------------------------------------
   _lights() {
-    this.scene.add(new THREE.HemisphereLight(0x9fb4ff, 0x12101a, 0.55));
+    this.scene.add(new THREE.HemisphereLight(0x9fb4ff, 0x12101a, 0.85));
+    this.scene.add(new THREE.AmbientLight(0x404a6a, 0.6));
     const key = new THREE.DirectionalLight(0xffffff, 0.7);
     key.position.set(2, 5, 6);
     this.scene.add(key);
@@ -190,17 +191,18 @@ export class Renderer {
   }
 
   _boombox() {
+    // A small backdrop set well BEHIND and BELOW the rings so it can never occlude gameplay.
     this.boombox = new THREE.Group();
-    this.boombox.position.set(0, 0.3, -4.2);
+    this.boombox.position.set(0, -1.8, -10);
     this.scene.add(this.boombox);
-    // try the real CC0 model; fall back to a primitive boombox if it can't load
     try {
       new GLTFLoader().load('models/boombox.glb', (gltf) => {
         const obj = gltf.scene;
         const box = new THREE.Box3().setFromObject(obj);
         const size = box.getSize(new THREE.Vector3());
         const center = box.getCenter(new THREE.Vector3());
-        const scale = 9 / Math.max(size.x, size.y, size.z); // model is ~2cm; scale way up
+        const maxDim = Math.max(size.x, size.y, size.z);
+        const scale = (isFinite(maxDim) && maxDim > 0) ? 4.5 / maxDim : 1; // model is ~2cm
         obj.scale.setScalar(scale);
         obj.position.sub(center.multiplyScalar(scale));
         this.boombox.add(obj);
