@@ -288,22 +288,25 @@ export class Renderer {
     ctx.beginPath(); ctx.arc(sp.x, sp.y, R * 1.02, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
   }
 
-  // A pearl: white/cream sphere with a specular highlight and a side-coloured halo.
-  _pearl(x, y, r, ring, alpha = 1) {
+  // A little fish (the note) swimming toward `facing` (radians; nose +x before rotation). Side-
+  // coloured body with a white belly highlight, tail, dorsal fin and an eye.
+  _fish(x, y, r, ring, alpha = 1, facing = Math.PI) {
     const { ctx } = this;
-    const c = ring === 'L' ? COL.L : ring === 'R' ? COL.R : '#ffffff';
+    const c = ring === 'L' ? COL.L : ring === 'R' ? COL.R : '#cfeaff';
+    const bodyL = r * 2.5, bodyH = r * 1.5;
     ctx.save();
-    ctx.shadowColor = c; ctx.shadowBlur = r * 1.7;
-    const g = ctx.createRadialGradient(x - r * 0.34, y - r * 0.4, r * 0.1, x, y, r);
-    g.addColorStop(0, `rgba(255,255,255,${alpha})`);
-    g.addColorStop(0.5, this._alpha('#e8f2ff', alpha));
-    g.addColorStop(0.82, this._alpha('#b9d4ea', alpha));
-    g.addColorStop(1, this._alpha(c, alpha * 0.85));
-    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+    ctx.translate(x, y); ctx.rotate(facing); ctx.globalAlpha = alpha;
+    ctx.shadowColor = c; ctx.shadowBlur = r * 1.2;
+    const g = ctx.createLinearGradient(0, -bodyH / 2, 0, bodyH / 2);
+    g.addColorStop(0, '#ffffff'); g.addColorStop(0.55, c); g.addColorStop(1, this._alpha(c, 0.65));
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.ellipse(0, 0, bodyL / 2, bodyH / 2, 0, 0, Math.PI * 2); ctx.fill();   // body
+    ctx.beginPath(); ctx.moveTo(-bodyL * 0.42, 0); ctx.lineTo(-bodyL * 0.72, -bodyH * 0.6); ctx.lineTo(-bodyL * 0.72, bodyH * 0.6); ctx.closePath(); ctx.fill(); // tail
+    ctx.beginPath(); ctx.moveTo(0, -bodyH * 0.42); ctx.lineTo(-r * 0.4, -bodyH * 0.95); ctx.lineTo(r * 0.3, -bodyH * 0.45); ctx.closePath(); ctx.fill(); // dorsal fin
     ctx.shadowBlur = 0;
-    ctx.fillStyle = `rgba(255,255,255,${0.9 * alpha})`;
-    ctx.beginPath(); ctx.arc(x - r * 0.3, y - r * 0.34, r * 0.2, 0, Math.PI * 2); ctx.fill();
-    ctx.restore();
+    ctx.fillStyle = `rgba(255,255,255,${alpha})`; ctx.beginPath(); ctx.arc(bodyL * 0.28, -bodyH * 0.1, r * 0.22, 0, Math.PI * 2); ctx.fill(); // eye white
+    ctx.fillStyle = `rgba(16,19,26,${alpha})`; ctx.beginPath(); ctx.arc(bodyL * 0.32, -bodyH * 0.1, r * 0.11, 0, Math.PI * 2); ctx.fill(); // pupil
+    ctx.restore(); ctx.globalAlpha = 1;
   }
 
   // Notes draw per TYPE. They approach along a runway, then become "live" on the rim. Nothing is
@@ -343,9 +346,9 @@ export class Renderer {
     const near = Math.abs(dt) < 0.12;
     // bite zone on the teeth — be anywhere in this arc as the pearl crosses
     this._rimArc(sp, n.angle, TAP_ARC, c, (near ? 0.95 : 0.4) * Math.min(1, p * 2), sp.r * (near ? 0.2 : 0.11), n.lit);
-    // the pearl swimming in toward the mouth
+    // the fish swimming in toward the mouth (facing inward)
     const rp = this._runwayPt(sp, n.angle, p);
-    this._pearl(rp.x, rp.y, sp.r * (near ? 0.26 : 0.2), n.ring, Math.min(1, p * 2 + 0.2));
+    this._fish(rp.x, rp.y, sp.r * (near ? 0.26 : 0.2), n.ring, Math.min(1, p * 2 + 0.2), n.angle + Math.PI);
   }
 
   _noteHold(sp, n, songTime, p) {
@@ -353,10 +356,10 @@ export class Renderer {
     // base arc (where to park), thicker; a brighter overlay fills with coverage
     this._rimArc(sp, n.angle, TAP_ARC, c, 0.30 * Math.min(1, p * 2), sp.r * 0.16, false);
     if (n.coverage > 0) this._rimArc(sp, n.angle, TAP_ARC * n.coverage, c, 0.9, sp.r * 0.2, n.lit);
-    // a pearl swimming in before the head
+    // a fish swimming in before the head
     if (songTime < n.time) {
       const rp = this._runwayPt(sp, n.angle, p);
-      this._pearl(rp.x, rp.y, sp.r * 0.18, n.ring, Math.min(1, p * 2));
+      this._fish(rp.x, rp.y, sp.r * 0.18, n.ring, Math.min(1, p * 2), n.angle + Math.PI);
     }
   }
 
@@ -380,7 +383,7 @@ export class Renderer {
     const head = noteTargetAngle(n, songTime);
     const onRim = songTime >= n.time;
     const hp = onRim ? this._rimPt(sp, head, 0.92) : this._runwayPt(sp, a0, p);
-    this._pearl(hp.x, hp.y, sp.r * 0.21, n.ring, 1);
+    this._fish(hp.x, hp.y, sp.r * 0.21, n.ring, 1, head + Math.PI);
   }
 
   _noteSpin(sp, n, songTime, p) {
@@ -437,34 +440,39 @@ export class Renderer {
     }
   }
 
-  // The player's aim cursor: a CLAMSHELL that collects pearls. It opens toward the aim direction
-  // and chomps wide on a hit (driven by this.pulse). A pearl nests inside.
+  // The player's cursor: the SHARK'S TONGUE reaching out from the throat toward the aim, licking up
+  // the fish. It extends with deflection and the tip flares on a hit/eat (driven by this.pulse).
   _cursor(ring, input) {
     const { ctx } = this;
     const sp = this.speakers[ring];
     const s = input ? (ring === 'L' ? input.left : input.right) : { x: 0, y: 0, mag: 0 };
     const c = ringColor(ring);
-    const maxOff = sp.r * 0.6;
     const mag = s.mag || 0;
-    const cx = sp.x + (s.x || 0) * maxOff, cy = sp.y + (s.y || 0) * maxOff;
-    const a = mag > 0.1 ? Math.atan2(s.y, s.x) : -Math.PI / 2;   // aim; at rest it closes facing up
-    const R = sp.r * 0.3;
-    const open = 0.16 + 0.32 * mag + 0.6 * this.pulse;           // gap half-angle; chomps on hits
-    const arc = 1.15;                                            // each shell's angular width
-    const shell = (edge, sweep) => {
-      const g = ctx.createRadialGradient(cx, cy, R * 0.12, cx, cy, R);
-      g.addColorStop(0, '#fbf1dd'); g.addColorStop(0.7, '#e6d2ad'); g.addColorStop(1, '#c9ad7e');
-      ctx.beginPath(); ctx.moveTo(cx, cy); ctx.arc(cx, cy, R, edge, edge + sweep, sweep < 0); ctx.closePath();
-      ctx.fillStyle = g; ctx.fill();
-      ctx.strokeStyle = 'rgba(120,86,48,0.35)'; ctx.lineWidth = Math.max(1, R * 0.04);
-      for (let k = 1; k <= 4; k++) { const ra = edge + sweep * (k / 5); ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + Math.cos(ra) * R, cy + Math.sin(ra) * R); ctx.stroke(); }
-      ctx.save(); ctx.shadowColor = c; ctx.shadowBlur = 8 + this.pulse * 18;
-      ctx.beginPath(); ctx.arc(cx, cy, R, edge, edge + sweep, sweep < 0);
-      ctx.strokeStyle = this._alpha(c, 0.85); ctx.lineWidth = Math.max(1.5, R * 0.08); ctx.stroke(); ctx.restore();
-    };
-    shell(a + open, arc);   // top half
-    shell(a - open, -arc);  // bottom half
-    this._pearl(cx, cy, R * 0.3, ring, 0.95);   // the pearl it's collecting
+    const a = mag > 0.1 ? Math.atan2(s.y, s.x) : -Math.PI / 2;     // aim; at rest it rests pointing up
+    const len = sp.r * (0.32 + 0.55 * mag);                        // tongue length grows with push
+    const tipX = sp.x + Math.cos(a) * len, tipY = sp.y + Math.sin(a) * len;
+    const wB = sp.r * 0.2, wT = sp.r * (0.12 + 0.06 * this.pulse); // base/tip half-width; flares on a hit
+    const nx = -Math.sin(a), ny = Math.cos(a);
+    ctx.save();
+    ctx.shadowColor = c; ctx.shadowBlur = 8 + this.pulse * 16;
+    const g = ctx.createLinearGradient(sp.x, sp.y, tipX, tipY);
+    g.addColorStop(0, '#9c3346'); g.addColorStop(0.6, '#e0697e'); g.addColorStop(1, '#f6a6b6');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.moveTo(sp.x + nx * wB, sp.y + ny * wB);
+    ctx.lineTo(tipX + nx * wT, tipY + ny * wT);
+    ctx.quadraticCurveTo(tipX + Math.cos(a) * wT * 1.5, tipY + Math.sin(a) * wT * 1.5, tipX - nx * wT, tipY - ny * wT); // rounded tip
+    ctx.lineTo(sp.x - nx * wB, sp.y - ny * wB);
+    ctx.closePath(); ctx.fill();
+    // centre groove + glossy highlight
+    ctx.strokeStyle = 'rgba(110,18,38,0.5)'; ctx.lineWidth = Math.max(1, sp.r * 0.025);
+    ctx.beginPath(); ctx.moveTo(sp.x, sp.y); ctx.lineTo(tipX, tipY); ctx.stroke();
+    ctx.shadowBlur = 0; ctx.fillStyle = 'rgba(255,255,255,0.22)';
+    ctx.beginPath(); ctx.ellipse((sp.x + tipX) / 2, (sp.y + tipY) / 2, len * 0.2, wT * 0.5, a, 0, Math.PI * 2); ctx.fill();
+    // side-colour glow dot at the licking tip
+    ctx.shadowColor = c; ctx.shadowBlur = 10 + this.pulse * 14;
+    ctx.fillStyle = this._alpha(c, 0.9); ctx.beginPath(); ctx.arc(tipX, tipY, sp.r * 0.05, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
   }
 
   _effects(ring, songTime) {
@@ -481,10 +489,10 @@ export class Renderer {
       const big = e.judgement === 'perfect' ? 2.3 : 1.6;
       ctx.beginPath(); ctx.arc(rx, ry, sp.r * 0.25 * (1 + age * big), 0, Math.PI * 2);
       ctx.strokeStyle = this._alpha(c, (1 - age) * 0.9); ctx.lineWidth = 5 * (1 - age); ctx.stroke();
-      // sparkle mini-pearls bursting outward
+      // little fish scattering outward (the catch)
       if (e.spark) for (const s of e.spark) {
         const d = sp.r * (0.2 + age * 1.5 * s.sp);
-        this._pearl(rx + Math.cos(s.a) * d, ry + Math.sin(s.a) * d, sp.r * 0.08 * (1 - age), ring, 1 - age);
+        this._fish(rx + Math.cos(s.a) * d, ry + Math.sin(s.a) * d, sp.r * 0.07 * (1 - age), ring, 1 - age, s.a);
       }
       // judgement text: rises, scales in, glows
       ctx.save();

@@ -470,7 +470,6 @@ class Game {
     this._setupController();
     const inp = this.input, gpv = this._gpv;
     this._el('title-status').textContent = this._controllerStatus();
-    gpv.root.classList.toggle('disconnected', !inp.connected);
 
     const bs = inp.buttonStates();
     for (const k in gpv.btn) { const el = gpv.btn[k]; if (el) el.classList.toggle('pressed', !!(bs[k] && bs[k].pressed)); }

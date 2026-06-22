@@ -74,6 +74,9 @@ html, body {
 #gpv-host .custom.controller {
   position: relative; width: 100vw; height: calc(100vw * 0.79206); transform-origin: top left;
 }
+/* disconnected overlay removed (it misbehaved) — never dim or show the cross-out */
+#gpv-host .custom.controller.disconnected { opacity: 1 !important; }
+#gpv-host .custom.controller.disconnected::after { display: none !important; }
 #gpv-drift {
   display: flex; flex-direction: column; gap: 5px; width: min(440px, 72vw); margin: 4px auto 0; text-align: left;
 }
