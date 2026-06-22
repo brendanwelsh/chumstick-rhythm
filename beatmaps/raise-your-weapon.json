@@ -5,7 +5,7 @@
     "audio": "raise-your-weapon.mp3",
     "bpm": 175,
     "offset": 0,
-    "approachTime": 1.6,
+    "approachTime": 2.4,
     "difficulty": "Onset"
   },
   "notes": [

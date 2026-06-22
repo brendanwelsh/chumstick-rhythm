@@ -14,9 +14,16 @@ const MOD_BUTTONS = { 4: 'L1', 5: 'R1', 6: 'L2', 7: 'R2', 0: 'cross', 1: 'circle
 
 export class GamepadInput {
   constructor() {
-    this.flickThreshold = 0.55;   // magnitude to register a flick
-    this.releaseThreshold = 0.35; // must fall below this to re-arm (hysteresis)
-    this.holdThreshold = 0.5;     // magnitude to count the stick as "held" (for hold notes)
+    this.flickThreshold = 0.5;    // magnitude to register a flick
+    this.releaseThreshold = 0.3;  // must fall below this to re-arm (hysteresis)
+    this.holdThreshold = 0.45;    // magnitude to count the stick as "held" (for hold notes)
+    this.deadzone = 0.12;         // ignore stick drift below this (for the displayed position)
+    this.padId = null;            // name of the connected gamepad, if any
+
+    // The Gamepad API only exposes a pad after the user interacts with it. These events let us
+    // know the moment a controller is awake so we can reflect it in the UI.
+    window.addEventListener('gamepadconnected', (e) => { this.padId = e.gamepad.id; });
+    window.addEventListener('gamepaddisconnected', () => { this.padId = null; });
 
     // Per-stick flick state machine: true = fired and waiting to re-arm.
     this._fired = { L: false, R: false };
@@ -94,16 +101,25 @@ export class GamepadInput {
   }
 
   _updateStick(ring, x, y, songTime) {
-    const mag = Math.hypot(x, y);
-    const live = { x, y, mag };
+    const rawMag = Math.hypot(x, y);
+    // Deadzone-corrected position used for display + holds (so a resting stick reads centered).
+    const live = this._deadzone(x, y);
     if (ring === 'L') this.left = live; else this.right = live;
 
-    if (!this._fired[ring] && mag >= this.flickThreshold) {
+    // Flick detection runs on the RAW magnitude (so a sharp flick always registers).
+    if (!this._fired[ring] && rawMag >= this.flickThreshold) {
       this._fired[ring] = true;
-      this.flicks.push({ ring, dir: vectorToDir(x, y), mods: this.heldMods(), mag, t: songTime });
-    } else if (this._fired[ring] && mag <= this.releaseThreshold) {
+      this.flicks.push({ ring, dir: vectorToDir(x, y), mods: this.heldMods(), mag: rawMag, t: songTime });
+    } else if (this._fired[ring] && rawMag <= this.releaseThreshold) {
       this._fired[ring] = false;
     }
+  }
+
+  _deadzone(x, y) {
+    const m = Math.hypot(x, y);
+    if (m < this.deadzone) return { x: 0, y: 0, mag: 0 };
+    const s = (m - this.deadzone) / (1 - this.deadzone); // rescale 0..1 past the deadzone
+    return { x: (x / m) * s, y: (y / m) * s, mag: s };
   }
 
   /** Modifier buttons currently held (gamepad + keyboard), as an array of mod names. */

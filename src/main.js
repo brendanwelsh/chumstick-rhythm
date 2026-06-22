@@ -2,8 +2,7 @@
 
 import { AudioEngine } from './audio.js';
 import { GamepadInput } from './input.js';
-import { Renderer as Renderer3D } from './render3d.js';
-import { Renderer as Renderer2D } from './render.js';
+import { Renderer } from './render.js';
 import { Scorer } from './scoring.js';
 import { normalizeChart, dirVector } from './chart.js';
 import { generateBeatmap, chartToJSON } from './beatgen.js';
@@ -20,17 +19,7 @@ class Game {
     this.audio = new AudioEngine();
     this.input = new GamepadInput();
     this.scorer = new Scorer();
-
-    // Prefer the 3D (WebGL) renderer; fall back to the 2D canvas one if WebGL is unavailable.
-    const canvas = document.getElementById('stage');
-    try {
-      this.renderer = new Renderer3D(canvas);
-      this.is3D = true;
-    } catch (e) {
-      console.warn('3D renderer init failed — falling back to 2D.', e);
-      this.renderer = new Renderer2D(canvas);
-      this.is3D = false;
-    }
+    this.renderer = new Renderer(document.getElementById('stage'));
 
     this.state = 'title';
     this.demo = false;        // attract/auto-play mode
@@ -337,47 +326,51 @@ class Game {
   }
 
   // --- main loop -----------------------------------------------------------
+  _controllerStatus() {
+    if (this.input.connected) {
+      const id = this.input.padId ? this.input.padId.replace(/\(.*\)/, '').trim().slice(0, 26) : 'Controller';
+      return '🎮 ' + (id || 'Controller') + ' connected';
+    }
+    return '🎮 Connect a controller, then PRESS A BUTTON to wake it · ⌨️ keyboard works too';
+  }
+
   _loop() {
-    const songTime = this.state === 'playing' ? this.audio.time : 0;
+    const live = this.state === 'playing' || this.state === 'paused';
+    const songTime = live ? this.audio.time : 0;
     window.__songTime = songTime; // for keyboard flick stamping
     this.input.update(songTime);
     this._handleIntents();
 
-    if (this.state === 'title') {
-      this._el('title-status').textContent = this.input.connected
-        ? '🎮 Controller connected'
-        : '⌨️  No controller — keyboard fallback active';
-    }
+    if (this.state === 'title') this._el('title-status').textContent = this._controllerStatus();
 
-    if (this.state === 'playing' || this.state === 'paused') {
-      if (this.state === 'playing') {
-        if (this.demo) this._demoAutoplay(songTime);
-        // resolve flicks (every flick gets a visual streak, hit or not)
-        for (const f of this.input.takeFlicks()) {
-          this.renderer.addFlick(f);
-          this.scorer.judgeFlick(f, this.chart.notes, songTime);
-        }
-        this.scorer.updateHolds(this.chart.notes, this.input, songTime);
-        this.scorer.checkMisses(this.chart.notes, songTime);
-        for (const ev of this.scorer.takeEvents()) {
-          this.renderer.addEffect(ev);
-          // Guitar-Hero audio: clean song on a hit, GLITCH the mix on a miss.
-          if (ev.judgement === 'miss') this.audio.glitch();
-          if (ev.judgement !== 'hold') this._flashJudge(ev.judgement);
-        }
-        this._updateHud(songTime);
-        if (songTime > this.chart.duration) {
-          if (this.demo) this._startChart();                 // loop the attract demo
-          else if (!this._ended) { this._ended = true; this._finish(); }
-        }
+    if (this.state === 'playing') {
+      if (this.demo) this._demoAutoplay(songTime);
+      for (const f of this.input.takeFlicks()) {
+        this.renderer.addFlick(f);
+        this.scorer.judgeFlick(f, this.chart.notes, songTime);
       }
-      try {
-        this.renderer.drawGame({ chart: this.chart, songTime, scorer: this.scorer, input: this.input, demo: this.demo });
-      } catch (e) {
-        if (!this._renderDead) { this._renderDead = true; this._showError(e); }
+      this.scorer.updateHolds(this.chart.notes, this.input, songTime);
+      this.scorer.checkMisses(this.chart.notes, songTime);
+      for (const ev of this.scorer.takeEvents()) {
+        this.renderer.addEffect(ev);
+        if (ev.judgement === 'miss') this.audio.glitch();   // Guitar-Hero: miss glitches the mix
+        if (ev.judgement !== 'hold') this._flashJudge(ev.judgement);
+      }
+      this._updateHud(songTime);
+      if (songTime > this.chart.duration) {
+        if (this.demo) this._startChart();                  // loop the attract demo
+        else if (!this._ended) { this._ended = true; this._finish(); }
       }
     } else {
       this.input.takeFlicks(); // drain so flicks don't queue up in menus
+    }
+
+    // Render the stage EVERY frame so the boombox + thumbsticks are visible and moving even in
+    // the menus (notes only draw while a song is live).
+    try {
+      this.renderer.drawGame({ chart: live ? this.chart : null, songTime, scorer: this.scorer, input: this.input, playing: this.state === 'playing', demo: this.demo });
+    } catch (e) {
+      if (!this._renderDead) { this._renderDead = true; this._showError(e); }
     }
 
     requestAnimationFrame(() => this._loop());
