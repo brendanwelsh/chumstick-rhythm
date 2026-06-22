@@ -66,6 +66,26 @@ html, body {
   border: 1px solid rgba(255,255,255,0.14); border-radius: 7px; background: rgba(255,255,255,0.04); transition: all .08s; }
 .pip.on { color: #fff; background: var(--r); border-color: var(--r); box-shadow: 0 0 14px rgba(43,159,218,0.8); }
 
+/* ---------- Live gamepadviewer controller (DS5 white skin, MPL-2.0) ---------- */
+/* The skin is sized in vw (full-viewport); JS scales #gpv to fit #gpv-host. */
+#gpv-host { width: min(440px, 72vw); margin: 2px auto 0; overflow: hidden; position: relative; }
+#gpv-host .custom.controller {
+  position: relative; width: 100vw; height: calc(100vw * 0.79206); transform-origin: top left;
+}
+#gpv-drift {
+  display: flex; flex-direction: column; gap: 5px; width: min(440px, 72vw); margin: 4px auto 0; text-align: left;
+}
+.drift-row { display: flex; align-items: center; gap: 10px; font-size: 12px; color: var(--dim); }
+.drift-row b { width: 14px; text-align: center; font-weight: 800; }
+.drift-row b.dl { color: var(--l); } .drift-row b.dr { color: var(--r); }
+.drift-pad { position: relative; width: 32px; height: 32px; border-radius: 7px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.16); flex: 0 0 auto; }
+.drift-pad::before { content: ''; position: absolute; left: 50%; top: 0; bottom: 0; width: 1px; background: rgba(255,255,255,0.12); }
+.drift-pad::after { content: ''; position: absolute; top: 50%; left: 0; right: 0; height: 1px; background: rgba(255,255,255,0.12); }
+.drift-pad i { position: absolute; left: 50%; top: 50%; width: 8px; height: 8px; border-radius: 50%; background: #fff; box-shadow: 0 0 8px #fff; transform: translate(-50%, -50%); }
+.drift-num { font-family: ui-monospace, monospace; min-width: 96px; }
+.drift-num.drift { color: var(--red); font-weight: 800; }
+.drift-hint { font-size: 11px; color: rgba(140,180,210,0.7); }
+
 #start-prompt {
   font-size: clamp(16px, 2.4vw, 22px); font-weight: 800; letter-spacing: 0.12em; color: var(--dim);
   padding: 12px 24px; border: 1.5px solid rgba(255,255,255,0.2); border-radius: 12px; transition: all .12s;

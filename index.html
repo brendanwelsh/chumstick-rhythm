@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>CHUMSTICK RHYTHM — dual-stick rhythm</title>
+  <link rel="stylesheet" href="brand/ds5/style.css" />
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
@@ -49,12 +50,26 @@
 
     <div id="tester">
       <div class="t-head">CONTROLLER TEST — move the sticks &amp; press buttons</div>
-      <div id="axes-bars" class="axes"></div>
-      <div class="trigs">
-        <div class="trig"><span>L2</span><div class="tbar"><i id="trig-l2"></i></div></div>
-        <div class="trig"><span>R2</span><div class="tbar"><i id="trig-r2"></i></div></div>
+      <!-- Live gamepadviewer controller (brendanwelsh/playstation-ds5-white skin) -->
+      <div id="gpv-host">
+        <div class="custom controller disconnected" id="gpv">
+          <div class="triggers"><div class="trigger left" id="gpv-l2"></div><div class="trigger right" id="gpv-r2"></div></div>
+          <div class="bumpers"><div class="bumper left" id="gpv-l1"></div><div class="bumper right" id="gpv-r1"></div></div>
+          <div class="dpad"><div class="face up" id="gpv-up"></div><div class="face down" id="gpv-down"></div><div class="face left" id="gpv-dleft"></div><div class="face right" id="gpv-dright"></div></div>
+          <div class="abxy"><div class="button a" id="gpv-cross"></div><div class="button b" id="gpv-circle"></div><div class="button x" id="gpv-square"></div><div class="button y" id="gpv-triangle"></div></div>
+          <div class="arrows"><div class="back" id="gpv-back"></div><div class="start" id="gpv-start"></div></div>
+          <div class="quadrant p0"></div>
+          <div class="touchpad" id="gpv-touchpad"></div>
+          <div class="meta" id="gpv-meta"></div>
+          <div class="sticks"><div class="stick left" id="gpv-lstick"></div><div class="stick right" id="gpv-rstick"></div></div>
+        </div>
       </div>
-      <div id="btn-pips" class="pips"></div>
+      <!-- Stick deflection / drift test -->
+      <div id="gpv-drift">
+        <div class="drift-row"><b class="dl">L</b><span class="drift-pad"><i id="drift-dot-l"></i></span><span class="drift-num" id="drift-l">0.00, 0.00</span></div>
+        <div class="drift-row"><b class="dr">R</b><span class="drift-pad"><i id="drift-dot-r"></i></span><span class="drift-num" id="drift-r">0.00, 0.00</span></div>
+        <div class="drift-hint">Release the sticks — they should rest near <b>0.00</b>. Anything higher is <b>drift</b>.</div>
+      </div>
     </div>
 
     <div id="start-prompt">PULL <b>L2 + R2</b> TO START</div>

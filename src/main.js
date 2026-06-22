@@ -1,7 +1,7 @@
 // main.js — CHUMSTICK RHYTHM entry point. State machine + game loop wiring all modules together.
 
 import { AudioEngine } from './audio.js';
-import { GamepadInput, BUTTON_LABELS } from './input.js';
+import { GamepadInput } from './input.js';
 import { Renderer } from './render.js';
 import { Scorer } from './scoring.js';
 import { normalizeChart, angleVec, noteTargetAngle } from './chart.js';
@@ -444,47 +444,60 @@ class Game {
     return '🎮 connect a controller, then PRESS A BUTTON to wake it';
   }
 
-  _buildTester() {
-    if (this._testerBuilt) return;
-    const axes = this._el('axes-bars');
-    this._axisDots = [];
-    for (let i = 0; i < 6; i++) {
-      const bar = document.createElement('div'); bar.className = 'axis';
-      const dot = document.createElement('i'); bar.appendChild(dot);
-      const lbl = document.createElement('span'); lbl.textContent = i; bar.appendChild(lbl);
-      axes.appendChild(bar); this._axisDots.push(dot);
-    }
-    const pips = this._el('btn-pips');
-    this._pips = [];
-    for (const label of BUTTON_LABELS) {
-      const p = document.createElement('span'); p.className = 'pip'; p.textContent = label;
-      pips.appendChild(p); this._pips.push(p);
-    }
-    this._testerBuilt = true;
+  // Cache the gamepadviewer skin element refs and scale it to fit its host (the skin is sized in
+  // vw for a full-viewport controller; we scale #gpv down into #gpv-host).
+  _setupController() {
+    if (this._gpv) return;
+    const g = (id) => this._el(id);
+    this._gpv = {
+      root: g('gpv'),
+      btn: { // gamepad button index -> skin element that gets `.pressed`
+        0: g('gpv-cross'), 1: g('gpv-circle'), 2: g('gpv-square'), 3: g('gpv-triangle'),
+        4: g('gpv-l1'), 5: g('gpv-r1'), 8: g('gpv-back'), 9: g('gpv-start'),
+        10: g('gpv-lstick'), 11: g('gpv-rstick'), 12: g('gpv-up'), 13: g('gpv-down'),
+        14: g('gpv-dleft'), 15: g('gpv-dright'), 16: g('gpv-meta'),
+      },
+      l2: g('gpv-l2'), r2: g('gpv-r2'), lstick: g('gpv-lstick'), rstick: g('gpv-rstick'),
+      driftL: g('drift-l'), driftR: g('drift-r'), dotL: g('drift-dot-l'), dotR: g('drift-dot-r'),
+    };
+    const host = g('gpv-host');
+    const fit = () => { if (!host.clientWidth) return; this._gpv.root.style.transform = `scale(${host.clientWidth / window.innerWidth})`; host.style.height = host.clientWidth * 0.79206 + 'px'; };
+    fit(); requestAnimationFrame(fit); window.addEventListener('resize', fit);
   }
 
-  // The splash IS a live controller tester: axis bars move, button pips light, triggers fill.
+  // The splash IS the live controller: buttons light, triggers fill, sticks move, drift is shown.
   _updateSplash() {
-    this._buildTester();
-    const inp = this.input;
+    this._setupController();
+    const inp = this.input, gpv = this._gpv;
     this._el('title-status').textContent = this._controllerStatus();
+    gpv.root.classList.toggle('disconnected', !inp.connected);
+
+    const bs = inp.buttonStates();
+    for (const k in gpv.btn) { const el = gpv.btn[k]; if (el) el.classList.toggle('pressed', !!(bs[k] && bs[k].pressed)); }
+
     const t = inp.triggers();
-    this._el('trig-l2').style.width = Math.round(Math.min(1, t.L2) * 100) + '%';
-    this._el('trig-r2').style.width = Math.round(Math.min(1, t.R2) * 100) + '%';
+    gpv.l2.style.opacity = Math.min(1, t.L2);
+    gpv.r2.style.opacity = Math.min(1, t.R2);
+
+    const st = inp.rawSticks();   // raw (un-deadzoned) so resting drift is visible
+    const K = 26;                 // % of the stick's own size to translate at full deflection
+    gpv.lstick.style.transform = `translate(${(st.lx || 0) * K}%, ${(st.ly || 0) * K}%)`;
+    gpv.rstick.style.transform = `translate(${(st.rx || 0) * K}%, ${(st.ry || 0) * K}%)`;
+    this._drift(gpv.driftL, gpv.dotL, st.lx, st.ly);
+    this._drift(gpv.driftR, gpv.dotR, st.rx, st.ry);
+
     const both = inp.bothTriggers();
     this._el('start-prompt').classList.toggle('armed', both);
-
-    const ax = inp.allAxes();
-    this._axisDots.forEach((dot, i) => {
-      const v = ax[i];
-      dot.parentElement.style.opacity = v == null ? 0.25 : 1;
-      dot.style.left = (((v == null ? 0 : v) + 1) / 2 * 100) + '%';
-    });
-    const bs = inp.buttonStates();
-    this._pips.forEach((p, i) => p.classList.toggle('on', !!(bs[i] && bs[i].pressed)));
-
     if (both && !this._l2r2was) { this._l2r2was = true; this._startUrlChart(BUILTIN[0].url); }
     if (!both) this._l2r2was = false;
+  }
+
+  _drift(numEl, dotEl, x, y) {
+    x = x || 0; y = y || 0;
+    numEl.textContent = `${x.toFixed(2)}, ${y.toFixed(2)}`;
+    numEl.classList.toggle('drift', Math.hypot(x, y) > this.input.deadzone);
+    dotEl.style.left = (x + 1) / 2 * 100 + '%';
+    dotEl.style.top = (y + 1) / 2 * 100 + '%';
   }
 
   _loop() {

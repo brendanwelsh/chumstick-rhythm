@@ -79,6 +79,12 @@ export class GamepadInput {
   }
   allAxes() { return this._pad ? [...this._pad.axes] : []; }
 
+  /** Raw (un-deadzoned) left/right stick axes, DualSense layout corrected — for the tester/drift. */
+  rawSticks() {
+    const p = this._pad; if (!p) return { lx: 0, ly: 0, rx: 0, ry: 0 };
+    return this._stickAxes(p);
+  }
+
   /** Direction the stick is currently held in (for hold notes), or null if below threshold. */
   heldDir(ring) {
     const s = ring === 'L' ? this.left : this.right;
