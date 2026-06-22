@@ -12,19 +12,25 @@ export class AudioEngine {
     this.bpm = 120;
     this.running = false;
 
-    // Master + SFX gain so hit sounds don't clip the music.
+    // Master out.
     this.master = this.ctx.createGain();
-    this.master.gain.value = 0.9;
+    this.master.gain.value = 0.95;
     this.master.connect(this.ctx.destination);
 
+    // Music bus: BOTH the real track and the synth groove pass through here, so a miss can
+    // "glitch" the whole mix (stutter/duck) — Guitar-Hero style. SFX/glitch bursts bypass it.
+    this.musicBus = this.ctx.createGain();
+    this.musicBus.gain.value = 1.0;
+    this.musicBus.connect(this.master);
+
     this.sfxGain = this.ctx.createGain();
-    this.sfxGain.gain.value = 0.35;
+    this.sfxGain.gain.value = 0.4;
     this.sfxGain.connect(this.master);
 
-    // Groove bus (the synthesized backing when there's no audio file).
+    // Groove bus (the synthesized backing when there's no audio file) -> music bus.
     this.grooveGain = this.ctx.createGain();
     this.grooveGain.gain.value = 0.85;
-    this.grooveGain.connect(this.master);
+    this.grooveGain.connect(this.musicBus);
 
     // 0.5 s of white noise, reused by hats/snare.
     this._noise = this.ctx.createBuffer(1, this.ctx.sampleRate * 0.5, this.ctx.sampleRate);
@@ -87,7 +93,7 @@ export class AudioEngine {
     if (this.buffer) {
       this.source = this.ctx.createBufferSource();
       this.source.buffer = this.buffer;
-      this.source.connect(this.master);
+      this.source.connect(this.musicBus);
       this.source.start(t0);
     } else {
       // Groove mode: synthesize a backing beat locked to the clock (incl. the count-in).
@@ -191,7 +197,56 @@ export class AudioEngine {
     osc.start(when); osc.stop(when + 0.3);
   }
 
-  /** Short feedback blip on a hit. Pitch encodes the judgement; 'hold' is a sparkle. */
+  /**
+   * GLITCH the music on a miss (Guitar-Hero style): a hard stutter/dropout on the whole mix,
+   * a brief pitch wobble on the real track, and a noise/buzz burst. No sound at all on a hit —
+   * the song just plays through clean.
+   */
+  glitch() {
+    const now = this.ctx.currentTime;
+    // 1) stutter: gate the music bus down and snap it back
+    const g = this.musicBus.gain;
+    g.cancelScheduledValues(now);
+    g.setValueAtTime(Math.max(0.0001, g.value), now);
+    g.linearRampToValueAtTime(0.04, now + 0.015);
+    g.setValueAtTime(0.04, now + 0.085);
+    g.linearRampToValueAtTime(1.0, now + 0.14);
+    // 2) pitch wobble on the real track (if any)
+    if (this.source && this.source.playbackRate) {
+      const pr = this.source.playbackRate;
+      try {
+        pr.cancelScheduledValues(now);
+        pr.setValueAtTime(1.0, now);
+        pr.linearRampToValueAtTime(0.78, now + 0.04);
+        pr.linearRampToValueAtTime(1.0, now + 0.13);
+      } catch { /* some browsers disallow */ }
+    }
+    // 3) buzzy glitch burst (bypasses the music bus so it isn't ducked)
+    const bp = this.ctx.createBiquadFilter();
+    bp.type = 'bandpass'; bp.frequency.value = 900; bp.Q.value = 6;
+    this._noiseBurstTo(now, 0.1, 0.5, bp, this.sfxGain);
+    const osc = this.ctx.createOscillator();
+    const og = this.ctx.createGain();
+    osc.type = 'square'; osc.frequency.setValueAtTime(140, now);
+    osc.frequency.linearRampToValueAtTime(60, now + 0.1);
+    og.gain.setValueAtTime(0.18, now); og.gain.exponentialRampToValueAtTime(0.0001, now + 0.12);
+    osc.connect(og); og.connect(this.sfxGain);
+    osc.start(now); osc.stop(now + 0.13);
+  }
+
+  _noiseBurstTo(when, dur, gain, filter, dest) {
+    const src = this.ctx.createBufferSource();
+    src.buffer = this._noise;
+    const g = this.ctx.createGain();
+    g.gain.setValueAtTime(gain, when);
+    g.gain.exponentialRampToValueAtTime(0.0001, when + dur);
+    let node = src;
+    if (filter) { node.connect(filter); node = filter; }
+    node.connect(g); g.connect(dest || this.grooveGain);
+    src.start(when); src.stop(when + dur + 0.02);
+  }
+
+  /** (legacy) short blip — no longer used for hits; kept for optional cues. */
   hitSound(judgement) {
     const now = this.ctx.currentTime;
     const freq = judgement === 'perfect' ? 1320 : judgement === 'good' ? 880

@@ -1,24 +1,29 @@
-// render3d.js — STEREO FLIX renderer in Three.js (WebGL).
+// render3d.js — STEREO FLIX, Miami-neon / synthwave (Three.js / WebGL).
 //
-// A calm, flowy 3D stage: a real boombox model sits in back; two glowing speaker-rings float
-// in front (left = teal, right = rose). Notes flow in from depth toward the ring edge along
-// their flick direction. A 3D mock thumbstick under each ring tilts with your stick and snaps
-// to the note direction when you hit. Hold notes carry a trailing tail.
+// The stage: an Outrun sunset (gradient sky + retro sun + palm silhouettes) behind a glowing
+// neon grid. Two analog STICKS face the player, each ringed by 8 TRIGGER PADS (the 8 flick
+// directions). A note lights the pad you must push into; the on-screen stick tilts with your
+// real stick, and pushing into the lit pad on time TRIGGERS it. Hits keep the song clean;
+// misses glitch (handled in audio.js). No abstract orbs.
 //
-// Public API mirrors the old canvas renderer so main.js is unchanged in shape:
-//   new Renderer(canvas) · drawGame(state) · addEffect(e) · addFlick(f) · .effects .flickFx .pulse
+// API (unchanged for main.js): new Renderer(canvas) · drawGame(state) · addEffect(e) ·
+//   addFlick(f) · .effects .flickFx .pulse
 
 import * as THREE from 'three';
-import { GLTFLoader } from '../vendor/GLTFLoader.js';
-import { dirVector } from './chart.js';
+import { dirVector, DIRS } from './chart.js';
 
-const COL = { L: 0x37c9d6, R: 0xe06a9c, bg: 0x080a12, fog: 0x0a0e1a };
-const RING = { x: 3.0, y: 0.4, r: 1.15, tube: 0.085 };
-const APPROACH_DEPTH = 16;   // how far back (−z) a note spawns
-const OUT = 1.4;             // how far outside the ring a note starts, radially
+const COL = {
+  L: 0x05d9e8, R: 0xff2d95, accent: 0xb967ff,
+  miss: 0xff3b3b, perfect: 0xfff27a, good: 0x6effc7,
+  grid: 0xff2d95, gridCenter: 0x05d9e8,
+};
+const UNIT_X = 3.1;     // left/right stick offset
+const PAD_R = 1.45;     // radius of the ring of 8 trigger pads
+const MAX_TILT = 0.95;  // stick lean at full push (reaches the pads)
 
-// screen-space (y-down) dir vector -> 3D (y-up)
-function dir3(dir) { const v = dirVector(dir); return new THREE.Vector3(v.x, -v.y, 0); }
+const ringColor = (r) => (r === 'L' ? COL.L : COL.R);
+// screen dir (x, y) maps to ground plane (x, z): up (y=-1) -> away (-z)
+const groundVec = (dir) => { const v = dirVector(dir); return { x: v.x, z: v.y }; };
 const easeOut = (t) => 1 - Math.pow(1 - t, 3);
 
 export class Renderer {
@@ -28,33 +33,27 @@ export class Renderer {
     this.flickFx = [];
     this.pulse = 0;
     this._t = 0;
-    this._noteMeshes = new Map(); // note.id -> {group, mat, tail}
-    this._stickSnap = { L: { v: new THREE.Vector3(), a: 0 }, R: { v: new THREE.Vector3(), a: 0 } };
+    this._noteMeshes = new Map();
+    this._snap = { L: { x: 0, z: 0, a: 0 }, R: { x: 0, z: 0, a: 0 } };
 
     this.three = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
     this.three.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     this.three.outputColorSpace = THREE.SRGBColorSpace;
-    this.three.toneMapping = THREE.ACESFilmicToneMapping;
-    this.three.toneMappingExposure = 1.05;
 
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color(COL.bg);
-    this.scene.fog = new THREE.Fog(COL.fog, 18, 46);
+    this.scene.fog = new THREE.Fog(0x2a0d3f, 14, 40);
 
-    this.camera = new THREE.PerspectiveCamera(50, 1, 0.1, 100);
-    this.camera.position.set(0, 1.4, 9);
-    this.camera.lookAt(0, 0.4, 0);
+    this.camera = new THREE.PerspectiveCamera(55, 1, 0.1, 200);
+    this.camera.position.set(0, 5.2, 9.6);
+    this.camera.lookAt(0, 1.0, -3);
 
-    this._sharedNoteGeo = new THREE.ConeGeometry(0.22, 0.5, 4);
-    this._sharedTailGeo = new THREE.CylinderGeometry(0.05, 0.05, 1, 6);
-    this._sharedGateGeo = new THREE.TorusGeometry(0.30, 0.06, 12, 28);
+    this._approachGeo = new THREE.TorusGeometry(0.42, 0.05, 10, 28);
+    this._padGeo = new THREE.CylinderGeometry(0.32, 0.32, 0.09, 24);
 
     this._lights();
-    this._rings();
-    this._sticks();
-    this._cursors();
-    this._atmosphere();
-    this._boombox();
+    this._backdrop();
+    this._grid();
+    this._units();
 
     this.resize();
     window.addEventListener('resize', () => this.resize());
@@ -68,198 +67,182 @@ export class Renderer {
     this.camera.updateProjectionMatrix();
   }
 
-  // --- scene setup --------------------------------------------------------
+  // --- scene ---------------------------------------------------------------
   _lights() {
-    this.scene.add(new THREE.HemisphereLight(0x9fb4ff, 0x12101a, 0.85));
-    this.scene.add(new THREE.AmbientLight(0x404a6a, 0.6));
-    const key = new THREE.DirectionalLight(0xffffff, 0.7);
-    key.position.set(2, 5, 6);
-    this.scene.add(key);
-    const pL = new THREE.PointLight(COL.L, 14, 18, 2); pL.position.set(-RING.x, RING.y, 2.5);
-    const pR = new THREE.PointLight(COL.R, 14, 18, 2); pR.position.set(RING.x, RING.y, 2.5);
-    this.scene.add(pL, pR);
-    // dedicated light so the boombox model reads against the dark stage
-    const bb = new THREE.PointLight(0xfff0d8, 26, 26, 2); bb.position.set(0, 2.4, -1.5);
-    this.scene.add(bb);
+    this.scene.add(new THREE.HemisphereLight(0xff6ec7, 0x2a0d3f, 1.0));
+    this.scene.add(new THREE.AmbientLight(0x6a4a8a, 0.7));
+    const key = new THREE.DirectionalLight(0xffd0e0, 0.7); key.position.set(0, 6, 8); this.scene.add(key);
+    const pL = new THREE.PointLight(COL.L, 12, 16, 2); pL.position.set(-UNIT_X, 2.5, 3); this.scene.add(pL);
+    const pR = new THREE.PointLight(COL.R, 12, 16, 2); pR.position.set(UNIT_X, 2.5, 3); this.scene.add(pR);
   }
 
-  _rings() {
-    this.rings = {};
-    for (const side of ['L', 'R']) {
-      const g = new THREE.Group();
-      g.position.set(side === 'L' ? -RING.x : RING.x, RING.y, 0);
-      const mat = new THREE.MeshStandardMaterial({
-        color: COL[side], emissive: COL[side], emissiveIntensity: 0.5, metalness: 0.4, roughness: 0.3,
-      });
-      const torus = new THREE.Mesh(new THREE.TorusGeometry(RING.r, RING.tube, 18, 64), mat);
-      g.add(torus);
-      // 8 faint direction pips
-      for (let i = 0; i < 8; i++) {
-        const a = i * Math.PI / 4;
-        const pip = new THREE.Mesh(
-          new THREE.SphereGeometry(0.05, 8, 8),
-          new THREE.MeshStandardMaterial({ color: COL[side], emissive: COL[side], emissiveIntensity: 0.35, roughness: 0.5 })
-        );
-        pip.position.set(Math.cos(a) * RING.r, Math.sin(a) * RING.r, 0);
-        g.add(pip);
+  _backdrop() {
+    const cv = document.createElement('canvas');
+    cv.width = 1024; cv.height = 576;
+    const x = cv.getContext('2d');
+
+    // sunset sky
+    const sky = x.createLinearGradient(0, 0, 0, cv.height);
+    sky.addColorStop(0.00, '#190b2e');
+    sky.addColorStop(0.42, '#5b1a6b');
+    sky.addColorStop(0.62, '#c11e6f');
+    sky.addColorStop(0.78, '#ff5d6c');
+    sky.addColorStop(0.90, '#ff9a3d');
+    sky.addColorStop(1.00, '#ffcf6b');
+    x.fillStyle = sky; x.fillRect(0, 0, cv.width, cv.height);
+
+    // stars
+    x.fillStyle = 'rgba(255,255,255,0.8)';
+    for (let i = 0; i < 90; i++) {
+      const sx = Math.random() * cv.width, sy = Math.random() * cv.height * 0.4;
+      x.globalAlpha = Math.random() * 0.8; x.fillRect(sx, sy, 2, 2);
+    }
+    x.globalAlpha = 1;
+
+    // retro sun with horizontal scanline gaps
+    const cx = cv.width / 2, cy = cv.height * 0.52, R = 165;
+    const sun = x.createLinearGradient(0, cy - R, 0, cy + R);
+    sun.addColorStop(0, '#fff27a'); sun.addColorStop(0.5, '#ff8a3d'); sun.addColorStop(1, '#ff2d95');
+    x.save();
+    x.beginPath(); x.arc(cx, cy, R, 0, Math.PI * 2); x.clip();
+    x.fillStyle = sun; x.fillRect(cx - R, cy - R, R * 2, R * 2);
+    x.fillStyle = '#190b2e';
+    for (let i = 0; i < 9; i++) { const gy = cy + i * 13; x.fillRect(cx - R, gy, R * 2, 4 + i); } // widening gaps
+    x.restore();
+
+    // horizon glow
+    const hg = x.createLinearGradient(0, cy + R * 0.4, 0, cy + R * 1.1);
+    hg.addColorStop(0, 'rgba(255,120,180,0)'); hg.addColorStop(1, 'rgba(255,200,120,0.5)');
+    x.fillStyle = hg; x.fillRect(0, cy, cv.width, R);
+
+    // palm silhouettes
+    const palm = (px, py, s, flip) => {
+      x.save(); x.translate(px, py); x.scale(flip ? -s : s, s); x.fillStyle = '#0a0512'; x.strokeStyle = '#0a0512';
+      x.lineWidth = 7; x.lineCap = 'round';
+      x.beginPath(); x.moveTo(0, 0); x.quadraticCurveTo(-6, -55, 6, -120); x.lineWidth = 10; x.stroke(); // trunk
+      for (let i = 0; i < 7; i++) {
+        const a = (-Math.PI / 2) + (i - 3) * 0.5;
+        x.beginPath(); x.moveTo(6, -120);
+        x.quadraticCurveTo(6 + Math.cos(a) * 55, -120 + Math.sin(a) * 55, 6 + Math.cos(a) * 95, -120 + Math.sin(a) * 30);
+        x.lineWidth = 7; x.stroke();
       }
-      this.rings[side] = { group: g, torus, mat };
-      this.scene.add(g);
-    }
-  }
+      x.restore();
+    };
+    // sit the palms above the horizon line so the floor doesn't hide them
+    palm(150, 388, 2.0, false);
+    palm(345, 392, 1.3, false);
+    palm(cv.width - 140, 388, 2.2, true);
+    palm(cv.width - 330, 392, 1.4, true);
 
-  _sticks() {
-    this.sticks = {};
-    for (const side of ['L', 'R']) {
-      const root = new THREE.Group();
-      root.position.set(side === 'L' ? -RING.x : RING.x, RING.y - RING.r - 0.95, 0.3);
-      const base = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.42, 0.5, 0.18, 24),
-        new THREE.MeshStandardMaterial({ color: 0x1a1d2a, metalness: 0.6, roughness: 0.4 })
-      );
-      root.add(base);
-      // pivot that tilts; the stick + cap are children so they lean as one
-      const pivot = new THREE.Group(); pivot.position.y = 0.05; root.add(pivot);
-      const shaft = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.12, 0.16, 0.5, 16),
-        new THREE.MeshStandardMaterial({ color: 0x2a2f40, metalness: 0.5, roughness: 0.5 })
-      );
-      shaft.position.y = 0.25; pivot.add(shaft);
-      const cap = new THREE.Mesh(
-        new THREE.SphereGeometry(0.26, 24, 16, 0, Math.PI * 2, 0, Math.PI * 0.6),
-        new THREE.MeshStandardMaterial({ color: COL[side], emissive: COL[side], emissiveIntensity: 0.25, metalness: 0.3, roughness: 0.4 })
-      );
-      cap.position.y = 0.5; cap.scale.y = 0.6; pivot.add(cap);
-      this.sticks[side] = { root, pivot, cap };
-      this.scene.add(root);
-    }
-  }
-
-  // A big, bright cursor INSIDE each ring that tracks the live stick in real time — the main
-  // "are my sticks moving?" feedback. A line from center shows the push direction/strength.
-  _cursors() {
-    this.cursors = {};
-    for (const side of ['L', 'R']) {
-      const mat = new THREE.MeshStandardMaterial({
-        color: 0xffffff, emissive: COL[side], emissiveIntensity: 1.0, metalness: 0.2, roughness: 0.25,
-      });
-      const dot = new THREE.Mesh(new THREE.SphereGeometry(0.22, 24, 16), mat);
-      dot.position.set(0, 0, 0.15);
-      const lineGeo = new THREE.BufferGeometry().setFromPoints([
-        new THREE.Vector3(0, 0, 0.1), new THREE.Vector3(0, 0, 0.1),
-      ]);
-      const line = new THREE.Line(lineGeo, new THREE.LineBasicMaterial({ color: COL[side], transparent: true, opacity: 0.7 }));
-      this.rings[side].group.add(line, dot);
-      this.cursors[side] = { dot, line, mat };
-    }
-  }
-
-  _updateCursors(input) {
-    for (const side of ['L', 'R']) {
-      const s = input ? (side === 'L' ? input.left : input.right) : { x: 0, y: 0, mag: 0 };
-      const px = (s.x || 0) * RING.r, py = -(s.y || 0) * RING.r; // screen y-down -> 3D y-up
-      const c = this.cursors[side];
-      c.dot.position.set(px, py, 0.15);
-      const mag = s.mag || 0;
-      c.dot.scale.setScalar(0.8 + mag * 0.6);
-      c.mat.emissiveIntensity = 0.7 + mag * 1.8;
-      const p = c.line.geometry.attributes.position;
-      p.setXYZ(1, px, py, 0.1); p.needsUpdate = true;
-      c.line.material.opacity = 0.25 + mag * 0.6;
-    }
-  }
-
-  _atmosphere() {
-    // drifting dust for a sense of flow
-    const N = 220, pos = new Float32Array(N * 3);
-    for (let i = 0; i < N; i++) {
-      pos[i * 3] = (Math.random() - 0.5) * 36;
-      pos[i * 3 + 1] = (Math.random() - 0.5) * 20;
-      pos[i * 3 + 2] = -Math.random() * 26 + 4;
-    }
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-    this._dust = new THREE.Points(geo, new THREE.PointsMaterial({ color: 0x6f7aa6, size: 0.05, transparent: true, opacity: 0.5 }));
-    this.scene.add(this._dust);
-
-    const floor = new THREE.Mesh(
-      new THREE.PlaneGeometry(80, 80),
-      new THREE.MeshStandardMaterial({ color: 0x0c0f1a, metalness: 0.7, roughness: 0.45 })
+    const tex = new THREE.CanvasTexture(cv);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    const plane = new THREE.Mesh(
+      new THREE.PlaneGeometry(120, 67),
+      new THREE.MeshBasicMaterial({ map: tex, fog: false, depthWrite: false })
     );
-    floor.rotation.x = -Math.PI / 2; floor.position.y = -2.6;
+    plane.position.set(0, 18, -34);
+    this.scene.add(plane);
+  }
+
+  _grid() {
+    const grid = new THREE.GridHelper(160, 80, COL.gridCenter, COL.grid);
+    grid.position.set(0, 0.01, -50);
+    grid.material.transparent = true; grid.material.opacity = 0.8;
+    this.scene.add(grid);
+    // dark reflective floor under the grid
+    const floor = new THREE.Mesh(
+      new THREE.PlaneGeometry(200, 200),
+      new THREE.MeshStandardMaterial({ color: 0x140a22, metalness: 0.7, roughness: 0.35 })
+    );
+    floor.rotation.x = -Math.PI / 2; floor.position.y = 0;
     this.scene.add(floor);
   }
 
-  _boombox() {
-    // A small backdrop set well BEHIND and BELOW the rings so it can never occlude gameplay.
-    this.boombox = new THREE.Group();
-    this.boombox.position.set(0, -1.8, -10);
-    this.scene.add(this.boombox);
-    try {
-      new GLTFLoader().load('models/boombox.glb', (gltf) => {
-        const obj = gltf.scene;
-        const box = new THREE.Box3().setFromObject(obj);
-        const size = box.getSize(new THREE.Vector3());
-        const center = box.getCenter(new THREE.Vector3());
-        const maxDim = Math.max(size.x, size.y, size.z);
-        const scale = (isFinite(maxDim) && maxDim > 0) ? 4.5 / maxDim : 1; // model is ~2cm
-        obj.scale.setScalar(scale);
-        obj.position.sub(center.multiplyScalar(scale));
-        this.boombox.add(obj);
-      }, undefined, () => this._primitiveBoombox());
-    } catch { this._primitiveBoombox(); }
-  }
+  _units() {
+    this.units = {};
+    for (const side of ['L', 'R']) {
+      const c = ringColor(side);
+      const g = new THREE.Group(); g.position.set(side === 'L' ? -UNIT_X : UNIT_X, 0, 2.4);
 
-  _primitiveBoombox() {
-    const g = this.boombox;
-    const bodyMat = new THREE.MeshStandardMaterial({ color: 0x20232f, metalness: 0.6, roughness: 0.4 });
-    const body = new THREE.Mesh(new THREE.BoxGeometry(7, 3, 1.4), bodyMat);
-    g.add(body);
-    for (const sx of [-1, 1]) {
-      const cone = new THREE.Mesh(
-        new THREE.CylinderGeometry(1.05, 1.05, 0.3, 32),
-        new THREE.MeshStandardMaterial({ color: 0x14161f, metalness: 0.5, roughness: 0.5 })
+      // glowing base disc (this is "the circle" — now clearly the ring of trigger pads)
+      const disc = new THREE.Mesh(
+        new THREE.CylinderGeometry(PAD_R + 0.45, PAD_R + 0.55, 0.12, 48),
+        new THREE.MeshStandardMaterial({ color: 0x1a0f2e, emissive: c, emissiveIntensity: 0.18, metalness: 0.5, roughness: 0.4 })
       );
-      cone.rotation.x = Math.PI / 2; cone.position.set(sx * 2.1, 0, 0.75); g.add(cone);
+      disc.position.y = 0.06; g.add(disc);
+
+      // 8 trigger pads around the rim
+      const pads = {};
+      for (const dir of DIRS) {
+        const v = groundVec(dir);
+        const mat = new THREE.MeshStandardMaterial({ color: c, emissive: c, emissiveIntensity: 0.15, metalness: 0.3, roughness: 0.5, transparent: true, opacity: 0.9 });
+        const pad = new THREE.Mesh(this._padGeo, mat);
+        pad.position.set(v.x * PAD_R, 0.14, v.z * PAD_R);
+        g.add(pad);
+        pads[dir] = { mesh: pad, mat, base: 0.15 };
+      }
+
+      // base knob + tilting stick
+      const base = new THREE.Mesh(new THREE.CylinderGeometry(0.46, 0.58, 0.4, 24),
+        new THREE.MeshStandardMaterial({ color: 0x241433, metalness: 0.6, roughness: 0.4 }));
+      base.position.y = 0.22; g.add(base);
+      const pivot = new THREE.Group(); pivot.position.y = 0.42; g.add(pivot);
+      const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.23, 1.25, 18),
+        new THREE.MeshStandardMaterial({ color: 0x140a22, metalness: 0.5, roughness: 0.5 }));
+      shaft.position.y = 0.62; pivot.add(shaft);
+      const capMat = new THREE.MeshStandardMaterial({ color: 0x241433, emissive: c, emissiveIntensity: 0.5, metalness: 0.4, roughness: 0.3 });
+      const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.46, 0.4, 0.26, 28), capMat);
+      cap.position.y = 1.3; pivot.add(cap);
+      const cuff = new THREE.Mesh(new THREE.TorusGeometry(0.4, 0.06, 10, 28), new THREE.MeshStandardMaterial({ color: c, emissive: c, emissiveIntensity: 0.8 }));
+      cuff.rotation.x = Math.PI / 2; cuff.position.y = 1.18; pivot.add(cuff);
+
+      this.scene.add(g);
+      this.units[side] = { group: g, pivot, capMat, pads };
     }
-    const handle = new THREE.Mesh(new THREE.TorusGeometry(1.1, 0.08, 12, 24, Math.PI),
-      new THREE.MeshStandardMaterial({ color: 0x5a5a7a, metalness: 0.8, roughness: 0.3 }));
-    handle.position.set(0, 1.5, 0); g.add(handle);
   }
 
-  // --- effects ------------------------------------------------------------
+  // --- effects -------------------------------------------------------------
   addEffect({ judgement, ring, dir, t }) {
-    this.effects.push({ ring, dir, judgement, t0: t, dur: judgement === 'miss' ? 0.4 : 0.55 });
+    this.effects.push({ ring, dir, judgement, t0: t, dur: judgement === 'miss' ? 0.45 : 0.55 });
     if (judgement !== 'miss') {
       this.pulse = 1;
-      const s = this._stickSnap[ring]; s.v.copy(dir3(dir)); s.a = 1; // snap the thumbstick
+      const v = groundVec(dir); const s = this._snap[ring]; s.x = v.x; s.z = v.z; s.a = 1;
     }
   }
 
   addFlick({ ring, dir, mag = 1, t }) {
-    this.flickFx.push({ ring, dir, mag, t0: t, dur: 0.25 });
-    const s = this._stickSnap[ring]; s.v.copy(dir3(dir)); s.a = Math.max(s.a, 0.85);
+    this.flickFx.push({ ring, dir, t0: t, dur: 0.2 });
+    const v = groundVec(dir); const s = this._snap[ring]; s.x = v.x; s.z = v.z; s.a = Math.max(s.a, 0.85);
   }
 
-  // --- per-frame ----------------------------------------------------------
+  // --- per-frame -----------------------------------------------------------
   drawGame(state) {
     const { chart, songTime, input } = state;
     this._t += 1 / 60;
+    // gentle camera sway
+    this.camera.position.x = Math.sin(this._t * 0.2) * 0.5;
+    this.camera.position.y = 5.2 + Math.sin(this._t * 0.35) * 0.12;
+    this.camera.lookAt(0, 1.0, -3);
 
-    // flowy idle motion
-    this.camera.position.x = Math.sin(this._t * 0.25) * 0.5;
-    this.camera.position.y = 1.4 + Math.sin(this._t * 0.4) * 0.12;
-    this.camera.lookAt(0, 0.4, 0);
-    if (this.boombox) { this.boombox.rotation.y = Math.sin(this._t * 0.3) * 0.12; this.boombox.position.y = -0.2 + Math.sin(this._t * 0.6) * 0.06; }
-    if (this._dust) this._dust.rotation.y = this._t * 0.02;
-
+    this._resetPads();
     this._updateNotes(chart, songTime);
-    this._updateCursors(input);
     this._updateSticks(input);
-    this._updateRingFx(songTime);
+    this._updatePadFx(songTime);
 
     this.pulse *= 0.9;
     this.three.render(this.scene, this.camera);
+  }
+
+  _resetPads() {
+    for (const side of ['L', 'R']) {
+      for (const dir of DIRS) {
+        const p = this.units[side].pads[dir];
+        p.mat.emissiveIntensity = p.base;
+        p.mat.color.setHex(ringColor(side));
+        p.mat.emissive.setHex(ringColor(side));
+        p.mesh.scale.setScalar(1);
+      }
+    }
   }
 
   _updateNotes(chart, songTime) {
@@ -271,111 +254,83 @@ export class Renderer {
       if (n.judged && songTime - n.time > 0.25) continue;
       live.add(n.id);
 
-      let entry = this._noteMeshes.get(n.id);
-      if (!entry) entry = this._makeNote(n);
+      let e = this._noteMeshes.get(n.id);
+      if (!e) e = this._makeNote(n);
       const p = Math.min(1.2, 1 - dt / chart.meta.approachTime);
       const ep = easeOut(Math.max(0, Math.min(1, p)));
-      const center = this.rings[n.ring].group.position;
-      const v = dir3(n.dir);
-      const radial = RING.r + OUT * (1 - ep);
-      const z = -APPROACH_DEPTH * (1 - ep);
-      entry.group.position.set(center.x + v.x * radial, center.y + v.y * radial, z);
-      // fade in, and dim once judged/hit
-      const appear = Math.min(1, p * 2.5);
-      entry.mat.opacity = n.judged ? Math.max(0, 0.6 - (songTime - n.time) * 3) : appear;
-      entry.mat.emissiveIntensity = n.judged ? 0.2 : 0.7;
-      if (entry.tail) entry.tail.visible = !n.judged || n.holdActive;
 
-      // Target gate: fixed on the ring at the push direction. Brightens as the note nears,
-      // and snaps to white + grows in the hit window = "PUSH HERE NOW".
-      if (entry.gate) {
-        const near = Math.abs(dt) < 0.1;
-        const closeness = Math.max(0, 1 - Math.abs(dt) / 0.6);
-        const col = (near && !n.judged) ? 0xffffff : COL[n.ring];
-        entry.gateMat.color.setHex(col);
-        entry.gateMat.emissive.setHex(col);
-        entry.gateMat.emissiveIntensity = 0.4 + closeness * 1.3 + (near ? 1.8 : 0);
-        entry.gateMat.opacity = n.judged ? Math.max(0, 0.6 - (songTime - n.time) * 4) : 0.45 + closeness * 0.5;
-        entry.gate.scale.setScalar((near && !n.judged) ? 1.5 : 1 + closeness * 0.25);
-      }
+      // approach ring descends + shrinks onto the pad
+      e.group.position.y = 0.16 + 2.4 * (1 - ep);
+      e.ring.scale.setScalar(1 + 2.2 * (1 - ep));
+      e.mat.opacity = n.judged ? Math.max(0, 0.7 - (songTime - n.time) * 4) : Math.min(1, p * 2.5);
+
+      // light the target pad: brighter as the note nears, white in the hit window = PUSH NOW
+      const pad = this.units[n.ring].pads[n.dir];
+      const near = Math.abs(dt) < 0.1 && !n.judged;
+      const closeness = Math.max(0, 1 - Math.abs(dt) / 0.6);
+      const col = near ? 0xffffff : ringColor(n.ring);
+      pad.mat.emissiveIntensity = Math.max(pad.mat.emissiveIntensity, 0.25 + closeness * 1.4 + (near ? 1.6 : 0));
+      pad.mat.color.setHex(col); pad.mat.emissive.setHex(col);
+      pad.mesh.scale.setScalar(near ? 1.4 : 1 + closeness * 0.25);
+      e.mat.color.setHex(col); e.mat.emissive.setHex(col);
+      if (e.tail) e.tail.visible = !n.judged || n.holdActive;
     }
-    // dispose meshes that are no longer live
     for (const [id, e] of this._noteMeshes) {
-      if (!live.has(id)) {
-        this.scene.remove(e.group); e.mat.dispose();
-        if (e.gate) { this.rings[e.ring].group.remove(e.gate); e.gateMat.dispose(); }
-        this._noteMeshes.delete(id);
-      }
+      if (!live.has(id)) { this.scene.remove(e.group); e.mat.dispose(); this._noteMeshes.delete(id); }
     }
   }
 
   _makeNote(n) {
+    const c = ringColor(n.ring);
+    const v = groundVec(n.dir);
+    const u = this.units[n.ring];
     const group = new THREE.Group();
-    const mat = new THREE.MeshStandardMaterial({
-      color: n.mod ? 0xffffff : COL[n.ring], emissive: COL[n.ring], emissiveIntensity: 0.7,
-      metalness: 0.3, roughness: 0.35, transparent: true, opacity: 0,
-    });
-    const cone = new THREE.Mesh(this._sharedNoteGeo, mat);
-    // point the cone (+Y) along the flick direction
-    cone.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir3(n.dir).normalize());
-    group.add(cone);
+    group.position.set(u.group.position.x + v.x * PAD_R, 0.16, u.group.position.z + v.z * PAD_R);
+
+    const mat = new THREE.MeshStandardMaterial({ color: c, emissive: c, emissiveIntensity: 0.9, transparent: true, opacity: 0 });
+    const ring = new THREE.Mesh(this._approachGeo, mat);
+    ring.rotation.x = -Math.PI / 2; // lie flat over the pad
+    group.add(ring);
 
     let tail = null;
-    const hold = n.hold || 0;
-    if (hold > 0) {
-      const len = Math.min(8, hold * (APPROACH_DEPTH / 1.5)); // visual length ∝ hold time
-      tail = new THREE.Mesh(this._sharedTailGeo, new THREE.MeshStandardMaterial({
-        color: COL[n.ring], emissive: COL[n.ring], emissiveIntensity: 0.4, transparent: true, opacity: 0.5,
-      }));
-      tail.scale.y = len;
-      tail.position.z = -len / 2;           // trail backward in z
-      tail.rotation.x = Math.PI / 2;
-      group.add(tail);
+    if ((n.hold || 0) > 0) {
+      const h = Math.min(3, n.hold * 2.2);
+      tail = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, h, 8),
+        new THREE.MeshStandardMaterial({ color: c, emissive: c, emissiveIntensity: 0.5, transparent: true, opacity: 0.5 }));
+      tail.position.y = h / 2; group.add(tail);
     }
     this.scene.add(group);
-
-    // Fixed target gate on the ring at the push direction (where the stick cursor must go).
-    const gv = dir3(n.dir);
-    const gateMat = new THREE.MeshStandardMaterial({
-      color: COL[n.ring], emissive: COL[n.ring], emissiveIntensity: 0.4,
-      metalness: 0.2, roughness: 0.4, transparent: true, opacity: 0.5,
-    });
-    const gate = new THREE.Mesh(this._sharedGateGeo, gateMat);
-    gate.position.set(gv.x * RING.r, gv.y * RING.r, 0.05);
-    this.rings[n.ring].group.add(gate);
-
-    const entry = { group, mat, tail, gate, gateMat, ring: n.ring };
-    this._noteMeshes.set(n.id, entry);
-    return entry;
+    const e = { group, ring, mat, tail };
+    this._noteMeshes.set(n.id, e);
+    return e;
   }
 
   _updateSticks(input) {
     for (const side of ['L', 'R']) {
-      const s = this.sticks[side];
-      const live = input ? (side === 'L' ? input.left : input.right) : { x: 0, y: 0 };
-      const snap = this._stickSnap[side];
-      // blend live tilt with a decaying snap toward the last hit direction
-      const tx = (live.x || 0) * 0.6 + snap.v.x * snap.a * 0.7;
-      const ty = (-live.y || 0) * 0.6 + snap.v.y * snap.a * 0.7;
-      const maxTilt = 0.7;
-      s.pivot.rotation.z = -THREE.MathUtils.clamp(tx, -1, 1) * maxTilt;
-      s.pivot.rotation.x = THREE.MathUtils.clamp(ty, -1, 1) * maxTilt;
-      const lit = 0.25 + snap.a * 0.9;
-      s.cap.material.emissiveIntensity = lit;
-      snap.a *= 0.86;
+      const u = this.units[side];
+      const s = input ? (side === 'L' ? input.left : input.right) : { x: 0, y: 0, mag: 0 };
+      const snap = this._snap[side];
+      // live push (screen y-up: input.y up = -1 -> lean away) blended with a decaying hit-snap
+      const ix = (s.x || 0) * 0.85 + snap.x * snap.a;
+      const iz = (s.y || 0) * 0.85 + snap.z * snap.a; // s.y already y-down; pad z uses same sign
+      u.pivot.rotation.z = -THREE.MathUtils.clamp(ix, -1.2, 1.2) * MAX_TILT;
+      u.pivot.rotation.x = THREE.MathUtils.clamp(iz, -1.2, 1.2) * MAX_TILT;
+      u.capMat.emissiveIntensity = 0.4 + (s.mag || 0) * 1.2 + snap.a * 0.8;
+      snap.a *= 0.85;
     }
   }
 
-  _updateRingFx(songTime) {
+  _updatePadFx(songTime) {
     this.effects = this.effects.filter((e) => songTime - e.t0 < e.dur);
     this.flickFx = this.flickFx.filter((f) => songTime - f.t0 < f.dur);
-    for (const side of ['L', 'R']) {
-      let flash = 0;
-      for (const e of this.effects) if (e.ring === side) flash = Math.max(flash, 1 - (songTime - e.t0) / e.dur);
-      const r = this.rings[side];
-      r.mat.emissiveIntensity = 0.5 + flash * 1.6 + this.pulse * 0.3;
-      const sc = 1 + flash * 0.12;
-      r.torus.scale.setScalar(sc);
+    for (const e of this.effects) {
+      const pad = this.units[e.ring].pads[e.dir];
+      const age = (songTime - e.t0) / e.dur;
+      const flash = 1 - age;
+      const col = e.judgement === 'perfect' ? COL.perfect : e.judgement === 'good' ? COL.good : COL.miss;
+      pad.mat.color.setHex(col); pad.mat.emissive.setHex(col);
+      pad.mat.emissiveIntensity = Math.max(pad.mat.emissiveIntensity, 0.4 + flash * 2.2);
+      pad.mesh.scale.setScalar(1 + flash * (e.judgement === 'miss' ? 0.15 : 0.5));
     }
   }
 }

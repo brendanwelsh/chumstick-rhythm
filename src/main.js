@@ -361,7 +361,8 @@ class Game {
         this.scorer.checkMisses(this.chart.notes, songTime);
         for (const ev of this.scorer.takeEvents()) {
           this.renderer.addEffect(ev);
-          this.audio.hitSound(ev.judgement);
+          // Guitar-Hero audio: clean song on a hit, GLITCH the mix on a miss.
+          if (ev.judgement === 'miss') this.audio.glitch();
           if (ev.judgement !== 'hold') this._flashJudge(ev.judgement);
         }
         this._updateHud(songTime);
