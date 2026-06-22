@@ -1,4 +1,4 @@
-// main.js — STEREO FLIX entry point. State machine + game loop wiring all modules together.
+// main.js — CHUMSTICK RHYTHM entry point. State machine + game loop wiring all modules together.
 
 import { AudioEngine } from './audio.js';
 import { GamepadInput } from './input.js';
@@ -287,7 +287,7 @@ class Game {
   }
 
   _showError(e) {
-    console.error('STEREO FLIX render error:', e);
+    console.error('CHUMSTICK RHYTHM render error:', e);
     const el = this._el('error');
     if (el) { el.textContent = 'Render error: ' + (e && e.message ? e.message : e) + ' — check the console.'; el.classList.remove('hidden'); }
   }
@@ -328,10 +328,27 @@ class Game {
   // --- main loop -----------------------------------------------------------
   _controllerStatus() {
     if (this.input.connected) {
-      const id = this.input.padId ? this.input.padId.replace(/\(.*\)/, '').trim().slice(0, 26) : 'Controller';
+      const id = this.input.padId ? this.input.padId.replace(/\(.*\)/, '').trim().slice(0, 30) : 'Controller';
       return '🎮 ' + (id || 'Controller') + ' connected';
     }
-    return '🎮 Connect a controller, then PRESS A BUTTON to wake it · ⌨️ keyboard works too';
+    return '🎮 connect a controller, then PRESS A BUTTON to wake it';
+  }
+
+  // The splash doubles as a live controller tester (the on-screen sticks move with your sticks).
+  _updateSplash() {
+    const inp = this.input;
+    this._el('title-status').textContent = this._controllerStatus();
+    const t = inp.triggers();
+    this._el('trig-l2').style.width = Math.round(Math.min(1, t.L2) * 100) + '%';
+    this._el('trig-r2').style.width = Math.round(Math.min(1, t.R2) * 100) + '%';
+    const both = inp.bothTriggers();
+    this._el('start-prompt').classList.toggle('armed', both);
+    this._el('axes-readout').textContent = inp.connected
+      ? `${inp.axesCount} axes · ${inp.mapping} · move the sticks to test`
+      : 'no controller detected — connect one and press a button';
+    // Start on an L2+R2 pull (rising edge).
+    if (both && !this._l2r2was) { this._l2r2was = true; this._startUrlChart(BUILTIN[0].url); }
+    if (!both) this._l2r2was = false;
   }
 
   _loop() {
@@ -341,7 +358,7 @@ class Game {
     this.input.update(songTime);
     this._handleIntents();
 
-    if (this.state === 'title') this._el('title-status').textContent = this._controllerStatus();
+    if (this.state === 'title') this._updateSplash();
 
     if (this.state === 'playing') {
       if (this.demo) this._demoAutoplay(songTime);

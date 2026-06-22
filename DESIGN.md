@@ -1,4 +1,4 @@
-# DESIGN.md — STEREO FLIX
+# DESIGN.md — CHUMSTICK RHYTHM
 
 > A rhythm game you play by **flicking the two analog sticks** of a DualSense / DualShock
 > controller in time with the music. Left stick drives the **left ring**, right stick drives

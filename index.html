@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>STEREO FLIX — dual-stick rhythm</title>
+  <title>CHUMSTICK RHYTHM — dual-stick rhythm</title>
   <link rel="stylesheet" href="styles.css" />
   <!-- Vendored Three.js, resolved for the bare "three" specifier used by GLTFLoader. -->
   <script type="importmap">
@@ -15,9 +15,9 @@
        (a gamepad button can't), so we force one before anything else. -->
   <div id="boot">
     <div class="boot-inner">
-      <div class="boot-logo">📻 STEREO FLIX</div>
-      <div class="boot-cta">CLICK or PRESS ANY KEY to start</div>
-      <div class="boot-sub">🔊 enables sound — then plug in your controller</div>
+      <img class="boot-logo-img" src="brand/chum-logo.png" alt="" />
+      <div class="boot-cta">CLICK to enable sound</div>
+      <div class="boot-sub">then plug in your controller &amp; press a button</div>
     </div>
   </div>
 
@@ -42,18 +42,21 @@
   <!-- ============ TITLE ============ -->
   <section id="title" class="screen">
     <img class="brand-logo" src="brand/chum-logo.png" alt="" />
-    <h1 class="title-logo">STEREO FLIX</h1>
-    <p class="tagline">two sticks · one beat</p>
-
-    <button id="btn-start" class="big">▸ PRESS START</button>
-    <button id="btn-demo">▶ Watch demo (auto-play)</button>
+    <h1 class="title-logo">CHUMSTICK RHYTHM</h1>
+    <p class="tagline">flick the sticks · ride the beat</p>
     <p id="title-status" class="status">…</p>
-    <p class="hint">
-      Flick the <b class="l">left stick</b> for the left speaker, the <b class="r">right stick</b> for the right —
-      any of 8 directions, on the beat. <b>Hold</b> notes ask you to flick and <i>keep</i> the stick there.
-      Hold <b>L1/R1</b> &amp; face buttons for modifier notes.<br>
-      No controller? <b>WASD</b> = left, <b>arrows</b> = right (combine two for diagonals), <b>Q/E/Shift/Space</b> = modifiers.
-    </p>
+
+    <div class="triggers">
+      <div class="trig"><span>L2</span><div class="tbar"><i id="trig-l2"></i></div></div>
+      <div class="trig"><span>R2</span><div class="tbar"><i id="trig-r2"></i></div></div>
+    </div>
+    <div id="start-prompt">PULL <b>L2 + R2</b> TO START</div>
+    <p id="axes-readout" class="mono">…</p>
+
+    <div class="row ghost-row">
+      <button id="btn-start">browse songs</button>
+      <button id="btn-demo">▶ watch demo</button>
+    </div>
   </section>
 
   <!-- ============ SONG SELECT ============ -->

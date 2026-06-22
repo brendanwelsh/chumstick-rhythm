@@ -1,9 +1,9 @@
 {
-  "name": "stereo-flix",
+  "name": "chumstick-rhythm",
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "STEREO FLIX — dual-analog-stick rhythm game (boombox-themed) for DualSense/DualShock. Vanilla JS + Canvas + Web Audio. No build step.",
+  "description": "CHUMSTICK RHYTHM — dual-analog-stick rhythm game (DualSense). Flick the sticks to the beat. Vanilla JS + Canvas + Web Audio. No build step.",
   "scripts": {
     "start": "npx --yes serve ."
   },

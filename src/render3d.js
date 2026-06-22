@@ -1,4 +1,4 @@
-// render3d.js — STEREO FLIX, Miami-neon / synthwave (Three.js / WebGL).
+// render3d.js — CHUMSTICK RHYTHM, Miami-neon / synthwave (Three.js / WebGL).
 //
 // The stage: an Outrun sunset (gradient sky + retro sun + palm silhouettes) behind a glowing
 // neon grid. Two analog STICKS face the player, each ringed by 8 TRIGGER PADS (the 8 flick

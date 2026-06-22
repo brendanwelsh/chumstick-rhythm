@@ -1,17 +1,17 @@
-# 📻 STEREO FLIX
+# 🦈 CHUMSTICK RHYTHM
 
-A **dual-analog-stick rhythm game** for the DualSense / DualShock 5, themed as a **boombox**:
-the two rings are the **left and right speakers** (cyan L, magenta R). **Flick** the matching
-stick in the required direction, in time with the music. Think *Beat Saber × osu! × DDR*, but
-the instrument is the **sticks themselves**.
+A **dual-analog-stick rhythm game** for the DualSense / DualShock 5 — a play on *thumbstick*
+rhythm. It's a front-facing **stereo**: two speakers (blue L / blue R) each with a realistic
+**thumbstick in the centre**. Notes approach 360° around each speaker; **flick the matching
+stick toward them on the beat**. Hit notes and the song plays clean — **miss and the audio
+glitches** (Guitar-Hero style). Grooveshark-blue, with a shark swimming in the sky.
 
 > Why it's new: flick-stick aiming, directional rhythm (DDR), and two-handed directional hits
 > (Beat Saber) all exist — but **nobody has made a rhythm game whose core input is flicking two
 > analog sticks to the beat.** See [`DESIGN.md`](DESIGN.md).
 
-Rendered in **3D with Three.js** (a real boombox model + flowing notes + a mock thumbstick per
-side that mirrors your flicks). Runs in any modern browser via the Gamepad API + Web Audio API.
-No install, no build step, OBS-overlay friendly.
+**Controller required** (real analog sticks — no keyboard play). 2D canvas + Web Audio, runs in
+any modern browser via the Gamepad API. No install, no build step, OBS-overlay friendly.
 
 ---
 
@@ -28,14 +28,16 @@ python -m http.server 8000
 npx serve .
 ```
 
-Then open **http://localhost:8000** and plug in / pair a DualSense.
+Then open **http://localhost:8000**:
 
-1. Press **Options/Start** (or **Enter**) on the title screen.
-2. Pick a song.
-3. Flick to the beat.
+1. **Click** once to enable sound.
+2. Plug in / pair a DualSense and **press a button to wake it** (browsers hide a gamepad until
+   you do). The splash is a live **controller tester** — move the sticks and watch them on the
+   speakers; the L2/R2 bars fill as you pull the triggers.
+3. **Pull L2 + R2 together to start.**
 
-**Just want to see it move?** Hit **▶ Watch demo** on the title screen — the game auto-plays
-the base track (perfect flicks, full feedback) as an attract loop. Back/Esc exits.
+**Just want to see it move?** Hit **▶ watch demo** — the game auto-plays the base track as an
+attract loop.
 
 **Play it from another device** (couch, phone, second PC): serve it bound to all interfaces and
 open it over your LAN or Tailscale:
@@ -51,16 +53,14 @@ python -m http.server 8000 --bind 0.0.0.0
 ### Controls
 | Input | Action |
 |---|---|
-| **Left stick** | Flick to hit **left-ring** notes (up/down/left/right + diagonals) |
-| **Right stick** | Flick to hit **right-ring** notes |
-| **L1 / R1 / L2 / R2 / face buttons** | Held/pressed for **modifier** notes |
-| **Options / Start / Enter** | Confirm / advance menus |
-| **Esc / Circle** | Back / pause |
+| **Left stick** | Flick toward **left-speaker** notes (any of 8 directions) |
+| **Right stick** | Flick toward **right-speaker** notes |
+| **L1 / R1 / face buttons** | Held for **modifier** notes |
+| **L2 + R2** | Start (on the splash) |
+| **Options / ✕** | Confirm menus · **◯ / Esc** back/pause |
 
-**No controller?** A keyboard fallback is built in for testing:
-`W A S D` = left-ring up/left/down/right · Arrow keys = right-ring ·
-`Q` = L1, `E` = R1, `Shift` = L2, `Space` = R2 (held while you press a direction).
-The real feel needs sticks — keyboard is just for dev.
+The keyboard only confirms/cancels menus — there's no keyboard *play* (the game needs real
+analog sticks you can flick and flow).
 
 ---
 
@@ -132,11 +132,12 @@ CLAUDE.md           # working guidance for this repo
 ```
 
 ## Status
-Playable prototype: title/song-select/results flow, **3D boombox stage** (two speaker-rings,
-mock thumbsticks, flowing notes incl. **hold notes** across 8 directions), gamepad flick
-detection with modifiers, an audio-clock-synced **synth groove** (until you drop the real
-track), hit detection + scoring/combo, demo/attract mode, and custom-track loading with
-auto-charting. Falls back to a 2D canvas renderer if WebGL is unavailable.
+Playable prototype: a 2D **stereo** stage (two speakers with centred thumbsticks on a blue
+shark sky), a splash that doubles as a **controller tester** (L2+R2 to start), gamepad flick
+detection with a deadzone + hold notes across 8 directions, an onset-aligned chart of the base
+song, Guitar-Hero **glitch-on-miss** audio, scoring/combo, demo/attract mode, and custom-track
+loading with auto-charting. (An earlier 3D/Three.js renderer lives in `src/render3d.js` +
+`vendor/` + `models/` but is no longer wired in.)
 
 ## Credits
 - **Three.js** — 3D engine, MIT License. <https://threejs.org>

@@ -1,4 +1,4 @@
-// render.js — STEREO FLIX, front-facing STEREO on a Grooveshark-blue sky (2D canvas).
+// render.js — CHUMSTICK RHYTHM, front-facing STEREO on a Grooveshark-blue sky (2D canvas).
 //
 // A small boombox sits centred on a blue sky with a shark swimming by. Two round speakers
 // (left/right) each hold a realistic analog THUMBSTICK in the centre; the stick tracks your
@@ -156,8 +156,8 @@ export class Renderer {
     if (this._logoReady) {
       const s = Math.min(w * 0.075, 76);
       ctx.drawImage(this.logo, w / 2 - s / 2, h * 0.03, s, s);
-      ctx.fillStyle = COL.text; ctx.font = `800 ${s * 0.26}px system-ui`; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
-      ctx.fillText('STEREO FLIX', w / 2, h * 0.03 + s + 2);
+      ctx.fillStyle = COL.text; ctx.font = `800 ${s * 0.22}px system-ui`; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+      ctx.fillText('CHUMSTICK RHYTHM', w / 2, h * 0.03 + s + 2);
     }
   }
 
