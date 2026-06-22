@@ -40,7 +40,7 @@ function fluxEnvelope(buffer) {
 }
 
 /** Adaptive-threshold local-maxima peak picking -> onset times (seconds). */
-function detectOnsets(flux, fps, { sensitivity = 1.4, minGap = 0.11 } = {}) {
+function detectOnsets(flux, fps, { sensitivity = 1.5, minGap = 0.18 } = {}) {
   const onsets = [];
   const W = Math.round(0.10 * fps); // ~100 ms half-window for the moving mean
   const minGapFrames = Math.round(minGap * fps);
@@ -70,19 +70,18 @@ function detectBPM(flux, fps, { min = 70, max = 200 } = {}) {
   return Math.round(bestBpm);
 }
 
-const CARDINALS = ['up', 'right', 'down', 'left'];
-
-/** Deterministic, flowing direction pattern: mostly cardinals, occasional diagonals. */
+/** Deterministic, flowing direction pattern across all 8 directions. */
 function pickDir(i, ring) {
-  if (i % 5 === 4) return DIRS[(i * 3) % 8];           // every 5th: a diagonal-ish spice
-  return CARDINALS[(i + (ring === 'R' ? 2 : 0)) % 4];  // offset rings so hands differ
+  return DIRS[((i * 3) + (ring === 'R' ? 2 : 0)) % 8]; // offset rings so hands differ
 }
 
-/** Turn onset times into notes with ring/dir/sparse modifiers. */
+/** Turn onset times into notes: ring/dir, sparse modifiers, and holds across big gaps. */
 function notesFromTimes(times) {
   return times.map((t, i) => {
     const ring = i % 2 === 0 ? 'L' : 'R';
     const note = { time: +t.toFixed(3), ring, dir: pickDir(i, ring) };
+    const gap = i < times.length - 1 ? times[i + 1] - t : 1;
+    if (i > 4 && gap > 0.8 && i % 4 === 0) note.hold = +Math.min(gap * 0.5, 1.2).toFixed(3);
     if (i > 8 && i % 16 === 8) note.mod = ring === 'L' ? 'L1' : 'R1';
     return note;
   });
@@ -107,7 +106,7 @@ export function generateBeatmap(buffer, opts = {}) {
   let onsets = detectOnsets(flux, fps);
 
   // Thin by density (keep every Nth onset) for lower difficulties.
-  const density = Math.min(1, Math.max(0.1, opts.density ?? 0.6));
+  const density = Math.min(1, Math.max(0.1, opts.density ?? 0.5));
   if (density < 1) {
     const keepEvery = Math.max(1, Math.round(1 / density));
     onsets = onsets.filter((_, i) => i % keepEvery === 0);
@@ -128,7 +127,7 @@ export function generateBeatmap(buffer, opts = {}) {
       audio: opts.audioName || null,
       bpm,
       offset: 0,
-      approachTime: opts.approachTime ?? 1.5,
+      approachTime: opts.approachTime ?? 1.8,
       difficulty: opts.difficulty || 'Auto',
     },
     notes,

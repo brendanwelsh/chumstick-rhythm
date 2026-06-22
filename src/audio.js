@@ -21,9 +21,19 @@ export class AudioEngine {
     this.sfxGain.gain.value = 0.35;
     this.sfxGain.connect(this.master);
 
-    // Metronome scheduler state (only used when there's no audio buffer).
-    this._metroNextBeat = 0;     // next beat index to schedule
-    this._metroTimer = null;
+    // Groove bus (the synthesized backing when there's no audio file).
+    this.grooveGain = this.ctx.createGain();
+    this.grooveGain.gain.value = 0.55;
+    this.grooveGain.connect(this.master);
+
+    // 0.5 s of white noise, reused by hats/snare.
+    this._noise = this.ctx.createBuffer(1, this.ctx.sampleRate * 0.5, this.ctx.sampleRate);
+    const nd = this._noise.getChannelData(0);
+    for (let i = 0; i < nd.length; i++) nd[i] = Math.random() * 2 - 1;
+
+    // Groove scheduler state (only used when there's no audio buffer).
+    this._grooveStep = 0;        // next 16th-note step to schedule
+    this._grooveTimer = null;
   }
 
   /** Browsers start the AudioContext suspended until a user gesture. Call on first input. */
@@ -80,9 +90,10 @@ export class AudioEngine {
       this.source.connect(this.master);
       this.source.start(t0);
     } else {
-      // Metronome mode: a count-in tick set + ongoing beat clicks.
-      this._metroNextBeat = Math.ceil(this.time * this.bpm / 60);
-      this._scheduleMetronome();
+      // Groove mode: synthesize a backing beat locked to the clock (incl. the count-in).
+      const sec16 = 15 / this.bpm; // a 16th-note step
+      this._grooveStep = Math.ceil(this.time / sec16);
+      this._scheduleGroove();
     }
   }
 
@@ -93,42 +104,98 @@ export class AudioEngine {
       this.source.disconnect();
       this.source = null;
     }
-    if (this._metroTimer) { clearTimeout(this._metroTimer); this._metroTimer = null; }
+    if (this._grooveTimer) { clearTimeout(this._grooveTimer); this._grooveTimer = null; }
     this.startedAt = null;
   }
 
-  // --- Metronome (clock-accurate via Web Audio scheduling, only the lookahead uses a timer) ---
-  _scheduleMetronome() {
+  // --- Groove (sample-accurate Web Audio scheduling; the timer only refills the lookahead) ---
+  _scheduleGroove() {
     if (!this.running || this.buffer) return;
-    const secPerBeat = 60 / this.bpm;
-    const lookahead = 0.2; // schedule up to 200 ms ahead
-    while (this._metroNextBeat * secPerBeat < this.time + lookahead) {
-      const beatTime = this.startedAt + this._metroNextBeat * secPerBeat;
-      if (beatTime >= this.ctx.currentTime) {
-        const downbeat = this._metroNextBeat % 4 === 0;
-        this._click(beatTime, downbeat ? 1500 : 1000, downbeat ? 0.25 : 0.14);
-      }
-      this._metroNextBeat++;
+    const sec16 = 15 / this.bpm; // 60/bpm/4
+    const lookahead = 0.25;
+    while (this._grooveStep * sec16 < this.time + lookahead) {
+      const when = this.startedAt + this._grooveStep * sec16;
+      if (when >= this.ctx.currentTime) this._grooveStepVoices(this._grooveStep, when);
+      this._grooveStep++;
     }
-    // The 25 ms poll only refills the lookahead buffer; the actual ticks are sample-accurate.
-    this._metroTimer = setTimeout(() => this._scheduleMetronome(), 25);
+    this._grooveTimer = setTimeout(() => this._scheduleGroove(), 30);
   }
 
-  _click(when, freq, gain) {
+  _grooveStepVoices(step, when) {
+    const sub = ((step % 4) + 4) % 4;          // 0..3 within the beat
+    const beat = Math.floor(step / 4);
+    const beatInBar = ((beat % 4) + 4) % 4;     // 0..3 within the bar
+    // kick on the beat, plus a syncopated push on the "&" of odd beats
+    if (sub === 0) this._kick(when);
+    if (sub === 2 && beatInBar % 2 === 1) this._kick(when, 0.6);
+    // snare/clap backbeat
+    if (sub === 0 && (beatInBar === 1 || beatInBar === 3)) this._snare(when);
+    // hats on every 8th, a touch brighter on the off-beat
+    if (sub % 2 === 0) this._hat(when, sub === 2 ? 0.5 : 0.32);
+    // bass root note per beat, simple movement across the bar
+    if (sub === 0) this._bass(when, [55.0, 55.0, 73.42, 49.0][beatInBar]); // A1 A1 D2 G1
+  }
+
+  _kick(when, gain = 1) {
     const osc = this.ctx.createOscillator();
     const g = this.ctx.createGain();
-    osc.frequency.value = freq;
-    g.gain.setValueAtTime(0, when);
-    g.gain.linearRampToValueAtTime(gain, when + 0.001);
-    g.gain.exponentialRampToValueAtTime(0.0001, when + 0.05);
-    osc.connect(g); g.connect(this.master);
-    osc.start(when); osc.stop(when + 0.06);
+    osc.frequency.setValueAtTime(150, when);
+    osc.frequency.exponentialRampToValueAtTime(48, when + 0.12);
+    g.gain.setValueAtTime(gain, when);
+    g.gain.exponentialRampToValueAtTime(0.0001, when + 0.18);
+    osc.connect(g); g.connect(this.grooveGain);
+    osc.start(when); osc.stop(when + 0.2);
   }
 
-  /** Short feedback blip on a hit. Pitch encodes the judgement. */
+  _noiseBurst(when, dur, gain, filter) {
+    const src = this.ctx.createBufferSource();
+    src.buffer = this._noise;
+    const g = this.ctx.createGain();
+    g.gain.setValueAtTime(gain, when);
+    g.gain.exponentialRampToValueAtTime(0.0001, when + dur);
+    let node = src;
+    if (filter) { node.connect(filter); node = filter; }
+    node.connect(g); g.connect(this.grooveGain);
+    src.start(when); src.stop(when + dur + 0.02);
+  }
+
+  _hat(when, gain) {
+    const hp = this.ctx.createBiquadFilter();
+    hp.type = 'highpass'; hp.frequency.value = 7000;
+    this._noiseBurst(when, 0.03, gain * 0.5, hp);
+  }
+
+  _snare(when) {
+    const bp = this.ctx.createBiquadFilter();
+    bp.type = 'highpass'; bp.frequency.value = 1500;
+    this._noiseBurst(when, 0.12, 0.5, bp);
+    const osc = this.ctx.createOscillator();
+    const g = this.ctx.createGain();
+    osc.type = 'triangle'; osc.frequency.setValueAtTime(180, when);
+    g.gain.setValueAtTime(0.25, when);
+    g.gain.exponentialRampToValueAtTime(0.0001, when + 0.1);
+    osc.connect(g); g.connect(this.grooveGain);
+    osc.start(when); osc.stop(when + 0.12);
+  }
+
+  _bass(when, freq) {
+    const osc = this.ctx.createOscillator();
+    const lp = this.ctx.createBiquadFilter();
+    const g = this.ctx.createGain();
+    osc.type = 'sawtooth'; osc.frequency.value = freq;
+    lp.type = 'lowpass'; lp.frequency.value = 420;
+    g.gain.setValueAtTime(0.0001, when);
+    g.gain.linearRampToValueAtTime(0.5, when + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, when + 0.26);
+    osc.connect(lp); lp.connect(g); g.connect(this.grooveGain);
+    osc.start(when); osc.stop(when + 0.3);
+  }
+
+  /** Short feedback blip on a hit. Pitch encodes the judgement; 'hold' is a sparkle. */
   hitSound(judgement) {
     const now = this.ctx.currentTime;
-    const freq = judgement === 'perfect' ? 1320 : judgement === 'good' ? 880 : 220;
+    const freq = judgement === 'perfect' ? 1320 : judgement === 'good' ? 880
+      : judgement === 'hold' ? 1760 : 220;
     const osc = this.ctx.createOscillator();
     const g = this.ctx.createGain();
     osc.type = judgement === 'miss' ? 'sawtooth' : 'triangle';

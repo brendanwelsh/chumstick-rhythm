@@ -5,10 +5,28 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>STEREO FLIX — dual-stick rhythm</title>
   <link rel="stylesheet" href="styles.css" />
+  <!-- Vendored Three.js, resolved for the bare "three" specifier used by GLTFLoader. -->
+  <script type="importmap">
+  { "imports": { "three": "./vendor/three.module.js" } }
+  </script>
 </head>
 <body>
-  <!-- Gameplay canvas (boombox + notes + HUD drawn here) -->
+  <!-- Gameplay canvas (Three.js / WebGL renders the 3D stage here) -->
   <canvas id="stage"></canvas>
+
+  <!-- Minimal in-game HUD (kept calm/out of the way) -->
+  <div id="hud" class="hidden">
+    <div class="hud-top">
+      <span id="hud-score">0000000</span>
+      <span id="hud-acc">100.0%</span>
+    </div>
+    <div id="hud-combo"></div>
+    <div id="judge"></div>
+    <div id="countin"></div>
+    <div id="demo-badge" class="hidden">▶ DEMO · auto-play — Back/Esc to exit</div>
+  </div>
+
+  <div id="error" class="hidden"></div>
 
   <!-- ============ TITLE ============ -->
   <section id="title" class="screen">
@@ -29,9 +47,10 @@
     <button id="btn-demo">▶ Watch demo (auto-play)</button>
     <p id="title-status" class="status">…</p>
     <p class="hint">
-      Flick the <b class="l">left stick</b> for the left speaker, the <b class="r">right stick</b> for the right.
-      Hit the required direction on the beat. Hold <b>L1/R1</b> &amp; face buttons for modifier notes.<br>
-      No controller? <b>WASD</b> = left, <b>arrows</b> = right, <b>Q/E/Shift/Space</b> = modifiers.
+      Flick the <b class="l">left stick</b> for the left speaker, the <b class="r">right stick</b> for the right —
+      any of 8 directions, on the beat. <b>Hold</b> notes ask you to flick and <i>keep</i> the stick there.
+      Hold <b>L1/R1</b> &amp; face buttons for modifier notes.<br>
+      No controller? <b>WASD</b> = left, <b>arrows</b> = right (combine two for diagonals), <b>Q/E/Shift/Space</b> = modifiers.
     </p>
   </section>
 

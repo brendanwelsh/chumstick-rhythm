@@ -5,8 +5,12 @@
 // direction/modifier inside the window => Miss (and the note is consumed so it can't be
 // re-triggered).
 
+import { DIR_VECTORS } from './chart.js';
+
 export const WINDOWS = { perfect: 0.045, good: 0.090 }; // ± seconds
 const SCORE = { perfect: 300, good: 100, miss: 0 };
+const HOLD_BONUS = 150;        // for completing a hold
+const HOLD_KEEP = 0.6;         // dot-product tolerance for "still held in direction"
 
 export class Scorer {
   constructor() {
@@ -44,12 +48,12 @@ export class Scorer {
     return Math.min(4, 1 + Math.floor(this.combo / 10) * 0.5);
   }
 
-  _apply(judgement, note, songTime) {
+  // Update counts/combo/score for a judged note (no feedback event emitted).
+  _score(judgement, note) {
     note.judged = true;
     note.judgement = judgement;
     this.counts[judgement]++;
     this.totalJudged++;
-
     if (judgement === 'miss') {
       this.combo = 0;
     } else {
@@ -57,7 +61,17 @@ export class Scorer {
       this.maxCombo = Math.max(this.maxCombo, this.combo);
       this.score += Math.round(SCORE[judgement] * this._comboMultiplier());
     }
+  }
+
+  _apply(judgement, note, songTime) {
+    this._score(judgement, note);
     this.events.push({ judgement, ring: note.ring, dir: note.dir, t: songTime });
+  }
+
+  _dirClose(held, dir) {
+    const dv = DIR_VECTORS[dir];
+    const hm = Math.hypot(held.x, held.y) || 1;
+    return (held.x / hm) * dv.x + (held.y / hm) * dv.y > HOLD_KEEP;
   }
 
   /**
@@ -67,7 +81,7 @@ export class Scorer {
   judgeFlick(flick, notes, songTime) {
     let best = null, bestErr = Infinity;
     for (const n of notes) {
-      if (n.judged || n.ring !== flick.ring) continue;
+      if (n.judged || n.holdActive || n.ring !== flick.ring) continue;
       const err = Math.abs(flick.t - n.time);
       if (err <= WINDOWS.good && err < bestErr) { best = n; bestErr = err; }
     }
@@ -77,20 +91,44 @@ export class Scorer {
     const dirOk = best.dir === flick.dir;
     const modOk = best.mod ? flick.mods.includes(best.mod) : true;
 
-    let judgement;
-    if (!dirOk || !modOk) {
-      judgement = 'miss';
-    } else {
-      judgement = bestErr <= WINDOWS.perfect ? 'perfect' : 'good';
+    if (!dirOk || !modOk) { this._apply('miss', best, songTime); return 'miss'; }
+
+    const judgement = bestErr <= WINDOWS.perfect ? 'perfect' : 'good';
+    if (best.hold > 0) {
+      // Hold note: head registered now (feedback), scored when the hold completes.
+      best.holdActive = true;
+      best.headJudgement = judgement;
+      best.holdEnd = best.time + best.hold;
+      this.events.push({ judgement, ring: best.ring, dir: best.dir, t: songTime });
+      return judgement;
     }
     this._apply(judgement, best, songTime);
     return judgement;
   }
 
-  /** Auto-miss any note whose Good window has fully passed. */
+  /** Advance active hold notes: complete at the end, break if the stick leaves the direction. */
+  updateHolds(notes, input, songTime) {
+    for (const n of notes) {
+      if (!n.holdActive) continue;
+      const held = input.heldDir(n.ring);
+      const keeping = held && this._dirClose(held, n.dir);
+      if (songTime >= n.holdEnd) {
+        n.holdActive = false;
+        this._score(n.headJudgement, n);
+        this.score += HOLD_BONUS;
+        this.events.push({ judgement: 'hold', ring: n.ring, dir: n.dir, t: songTime });
+      } else if (!keeping) {
+        n.holdActive = false;
+        const frac = (songTime - n.time) / n.hold;
+        this._apply(frac > 0.6 ? 'good' : 'miss', n, songTime);
+      }
+    }
+  }
+
+  /** Auto-miss any note whose Good window has fully passed (skip sustaining holds). */
   checkMisses(notes, songTime) {
     for (const n of notes) {
-      if (!n.judged && songTime - n.time > WINDOWS.good) {
+      if (!n.judged && !n.holdActive && songTime - n.time > WINDOWS.good) {
         this._apply('miss', n, songTime);
       }
     }

@@ -2,7 +2,8 @@
 
 import { AudioEngine } from './audio.js';
 import { GamepadInput } from './input.js';
-import { Renderer } from './render.js';
+import { Renderer as Renderer3D } from './render3d.js';
+import { Renderer as Renderer2D } from './render.js';
 import { Scorer } from './scoring.js';
 import { normalizeChart, dirVector } from './chart.js';
 import { generateBeatmap, chartToJSON } from './beatgen.js';
@@ -18,8 +19,18 @@ class Game {
   constructor() {
     this.audio = new AudioEngine();
     this.input = new GamepadInput();
-    this.renderer = new Renderer(document.getElementById('stage'));
     this.scorer = new Scorer();
+
+    // Prefer the 3D (WebGL) renderer; fall back to the 2D canvas one if WebGL is unavailable.
+    const canvas = document.getElementById('stage');
+    try {
+      this.renderer = new Renderer3D(canvas);
+      this.is3D = true;
+    } catch (e) {
+      console.warn('3D renderer init failed — falling back to 2D.', e);
+      this.renderer = new Renderer2D(canvas);
+      this.is3D = false;
+    }
 
     this.state = 'title';
     this.demo = false;        // attract/auto-play mode
@@ -43,6 +54,8 @@ class Game {
   showScreen(id) {
     for (const s of document.querySelectorAll('.screen')) s.classList.add('hidden');
     if (id) this._el(id).classList.remove('hidden');
+    // HUD shows only during live gameplay (id === null).
+    this._el('hud').classList.toggle('hidden', id !== null);
     this.focusIndex = 0;
     this._applyFocus();
   }
@@ -250,20 +263,44 @@ class Game {
 
   // --- demo / attract auto-play -------------------------------------------
   _demoAutoplay(songTime) {
-    // decay the faux stick deflection each frame
-    this._demoDefl.L.m *= 0.80;
-    this._demoDefl.R.m *= 0.80;
-    // fire a perfect flick for each note exactly as its time arrives
+    // decay the faux stick deflection, but HOLD it while a hold note is sustaining
+    for (const r of ['L', 'R']) {
+      const d = this._demoDefl[r];
+      if (d.until != null && songTime < d.until) d.m = 0.95;
+      else { d.m *= 0.80; d.until = null; }
+    }
+    // fire a perfect flick for each note as its time arrives
     for (const n of this.chart.notes) {
-      if (!n.judged && n.time <= songTime && n.time > songTime - 0.13) {
+      if (!n.judged && !n.holdActive && n.time <= songTime && n.time > songTime - 0.13) {
         this.input.flicks.push({ ring: n.ring, dir: n.dir, mods: n.mod ? [n.mod] : [], mag: 1, t: n.time });
-        this._demoDefl[n.ring] = { v: dirVector(n.dir), m: 0.95 };
+        this._demoDefl[n.ring] = { v: dirVector(n.dir), m: 0.95, until: n.hold > 0 ? n.time + n.hold : null };
       }
     }
-    // drive the live stick dots so the sticks visibly "flick" out and snap back
     const dot = (d) => ({ x: d.v.x * d.m, y: d.v.y * d.m, mag: d.m });
     this.input.left = dot(this._demoDefl.L);
     this.input.right = dot(this._demoDefl.R);
+  }
+
+  _updateHud(songTime) {
+    const s = this.scorer;
+    this._el('hud-score').textContent = String(s.score).padStart(7, '0');
+    this._el('hud-combo').textContent = s.combo > 0 ? s.combo + 'x' : '';
+    this._el('hud-acc').textContent = (s.accuracy * 100).toFixed(1) + '%';
+    this._el('countin').textContent = songTime < 0 ? String(Math.ceil(-songTime)) : '';
+    this._el('demo-badge').classList.toggle('hidden', !this.demo);
+  }
+
+  _showError(e) {
+    console.error('STEREO FLIX render error:', e);
+    const el = this._el('error');
+    if (el) { el.textContent = 'Render error: ' + (e && e.message ? e.message : e) + ' — check the console.'; el.classList.remove('hidden'); }
+  }
+
+  _flashJudge(judgement) {
+    const el = this._el('judge');
+    el.textContent = judgement.toUpperCase();
+    el.dataset.j = judgement;
+    el.classList.remove('pop'); void el.offsetWidth; el.classList.add('pop'); // restart anim
   }
 
   // --- input intents -------------------------------------------------------
@@ -313,17 +350,24 @@ class Game {
           this.renderer.addFlick(f);
           this.scorer.judgeFlick(f, this.chart.notes, songTime);
         }
+        this.scorer.updateHolds(this.chart.notes, this.input, songTime);
         this.scorer.checkMisses(this.chart.notes, songTime);
         for (const ev of this.scorer.takeEvents()) {
           this.renderer.addEffect(ev);
           this.audio.hitSound(ev.judgement);
+          if (ev.judgement !== 'hold') this._flashJudge(ev.judgement);
         }
+        this._updateHud(songTime);
         if (songTime > this.chart.duration) {
           if (this.demo) this._startChart();                 // loop the attract demo
           else if (!this._ended) { this._ended = true; this._finish(); }
         }
       }
-      this.renderer.drawGame({ chart: this.chart, songTime, scorer: this.scorer, input: this.input, demo: this.demo });
+      try {
+        this.renderer.drawGame({ chart: this.chart, songTime, scorer: this.scorer, input: this.input, demo: this.demo });
+      } catch (e) {
+        if (!this._renderDead) { this._renderDead = true; this._showError(e); }
+      }
     } else {
       this.input.takeFlicks(); // drain so flicks don't queue up in menus
     }

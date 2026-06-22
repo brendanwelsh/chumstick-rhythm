@@ -69,10 +69,13 @@ export function normalizeChart(raw) {
         ring,
         dir: DIR_VECTORS[dir] ? dir : 'up',
         mod,
+        hold: Math.max(0, Number(n.hold) || 0), // seconds to keep the stick held; 0 = tap flick
         // runtime state:
         judged: false,
-        judgement: null, // 'perfect' | 'good' | 'miss'
-        hitError: 0,      // seconds (signed) between flick and target
+        judgement: null,  // 'perfect' | 'good' | 'miss'
+        hitError: 0,       // seconds (signed) between flick and target
+        holdActive: false, // head hit, currently sustaining
+        headJudgement: null,
       };
     })
     .sort((a, b) => a.time - b.time);
@@ -91,8 +94,8 @@ export function normalizeChart(raw) {
       difficulty: meta.difficulty || 'Normal',
     },
     notes,
-    // The chart "ends" a bit after the final note so the results screen waits for it.
-    duration: notes.length ? notes[notes.length - 1].time + 2.5 : 5,
+    // The chart "ends" a bit after the final note (incl. its hold) so results wait for it.
+    duration: notes.length ? Math.max(...notes.map((n) => n.time + n.hold)) + 2.5 : 5,
   };
 }
 

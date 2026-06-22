@@ -16,6 +16,7 @@ export class GamepadInput {
   constructor() {
     this.flickThreshold = 0.55;   // magnitude to register a flick
     this.releaseThreshold = 0.35; // must fall below this to re-arm (hysteresis)
+    this.holdThreshold = 0.5;     // magnitude to count the stick as "held" (for hold notes)
 
     // Per-stick flick state machine: true = fired and waiting to re-arm.
     this._fired = { L: false, R: false };
@@ -35,7 +36,16 @@ export class GamepadInput {
     // Keyboard fallback state.
     this._keysHeld = new Set();
     this._kbMods = new Set();
+    this._dirKeys = new Set();
+    this._kbDir = { L: { x: 0, y: 0, mag: 0 }, R: { x: 0, y: 0, mag: 0 } };
     this._installKeyboard();
+  }
+
+  /** Direction the stick is currently held in (for hold notes), or null if below threshold. */
+  heldDir(ring) {
+    const s = ring === 'L' ? this.left : this.right;
+    if (!s || s.mag < this.holdThreshold) return null;
+    return { dir: vectorToDir(s.x, s.y), x: s.x, y: s.y, mag: s.mag };
   }
 
   get connected() {
@@ -58,8 +68,9 @@ export class GamepadInput {
       this._updateStick('L', pad.axes[0] || 0, pad.axes[1] || 0, songTime);
       this._updateStick('R', pad.axes[2] || 0, pad.axes[3] || 0, songTime);
     } else {
-      this.left = { x: 0, y: 0, mag: 0 };
-      this.right = { x: 0, y: 0, mag: 0 };
+      // No gamepad: drive the sticks from held keyboard direction keys (enables holds + dot).
+      this.left = this._kbDir.L;
+      this.right = this._kbDir.R;
     }
 
     // --- Buttons (edges + menu intents) ---
@@ -115,11 +126,30 @@ export class GamepadInput {
   takeMenu() { const m = this.menu; this.menu = []; return m; }
 
   // --- Keyboard fallback ---------------------------------------------------
+  // Map each direction key to [ring, x, y] (screen-space, y-down). Held keys are summed so
+  // W+D reads as a diagonal, and a held key keeps the stick deflected for hold notes.
+  static _DIR_KEYS = {
+    KeyW: ['L', 0, -1], KeyS: ['L', 0, 1], KeyA: ['L', -1, 0], KeyD: ['L', 1, 0],
+    ArrowUp: ['R', 0, -1], ArrowDown: ['R', 0, 1], ArrowLeft: ['R', -1, 0], ArrowRight: ['R', 1, 0],
+  };
+
+  _recomputeKbDir() {
+    const acc = { L: { x: 0, y: 0 }, R: { x: 0, y: 0 } };
+    for (const code of this._dirKeys) {
+      const m = GamepadInput._DIR_KEYS[code];
+      if (m) { acc[m[0]].x += m[1]; acc[m[0]].y += m[2]; }
+    }
+    for (const r of ['L', 'R']) {
+      const mag = Math.hypot(acc[r].x, acc[r].y);
+      this._kbDir[r] = mag > 0 ? { x: acc[r].x / mag, y: acc[r].y / mag, mag: 1 } : { x: 0, y: 0, mag: 0 };
+    }
+  }
+
   _installKeyboard() {
-    const dirFor = (code) => ({
-      KeyW: ['L', 'up'], KeyS: ['L', 'down'], KeyA: ['L', 'left'], KeyD: ['L', 'right'],
-      ArrowUp: ['R', 'up'], ArrowDown: ['R', 'down'], ArrowLeft: ['R', 'left'], ArrowRight: ['R', 'right'],
-    }[code]);
+    const dirFor = (code) => {
+      const m = GamepadInput._DIR_KEYS[code];
+      return m ? [m[0], vectorToDir(m[1], m[2])] : null;
+    };
     const modFor = (code) => ({
       KeyQ: 'L1', KeyE: 'R1', ShiftLeft: 'L2', ShiftRight: 'L2', Space: 'R2',
       Digit1: 'cross', Digit2: 'circle', Digit3: 'square', Digit4: 'triangle',
@@ -144,6 +174,7 @@ export class GamepadInput {
       const d = dirFor(code);
       if (d) {
         e.preventDefault();
+        this._dirKeys.add(code); this._recomputeKbDir();   // hold the deflection while pressed
         // songTime is stamped by the caller's clock; we use the global engine via window hook.
         const t = (window.__songTime != null) ? window.__songTime : 0;
         this.flicks.push({ ring: d[0], dir: d[1], mods: this.heldMods(), mag: 1, t });
@@ -153,6 +184,7 @@ export class GamepadInput {
     window.addEventListener('keyup', (e) => {
       const mod = modFor(e.code);
       if (mod) { this._kbMods.delete(mod); this._keysHeld.delete(e.code); }
+      if (GamepadInput._DIR_KEYS[e.code]) { this._dirKeys.delete(e.code); this._recomputeKbDir(); }
     });
   }
 }

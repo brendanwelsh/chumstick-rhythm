@@ -9,8 +9,9 @@ the instrument is the **sticks themselves**.
 > (Beat Saber) all exist — but **nobody has made a rhythm game whose core input is flicking two
 > analog sticks to the beat.** See [`DESIGN.md`](DESIGN.md).
 
-Runs in any modern browser via the Gamepad API + Web Audio API. No install, no build step,
-OBS-overlay friendly.
+Rendered in **3D with Three.js** (a real boombox model + flowing notes + a mock thumbstick per
+side that mirrors your flicks). Runs in any modern browser via the Gamepad API + Web Audio API.
+No install, no build step, OBS-overlay friendly.
 
 ---
 
@@ -119,9 +120,11 @@ included beatmap can be auto-regenerated and hand-tuned against it. See
 
 ## Project layout
 ```
-index.html          # shell + menus
+index.html          # shell + menus + HUD + import map
 styles.css
-src/                # ES modules — see CLAUDE.md for the map
+src/                # ES modules — see CLAUDE.md for the map (render3d.js = Three.js stage)
+vendor/             # vendored Three.js (MIT) + GLTFLoader + BufferGeometryUtils
+models/             # boombox.glb — CC0 3D model (see Credits)
 beatmaps/           # committed chart JSON (no audio)
 assets/             # drop local audio here (gitignored)
 DESIGN.md           # concept, landscape, mechanics
@@ -129,6 +132,14 @@ CLAUDE.md           # working guidance for this repo
 ```
 
 ## Status
-Playable prototype: title/song-select/results flow, two-ring playfield, gamepad flick detection
-with modifiers, audio-clock-synced chart player, hit detection + scoring/combo, and custom-track
-loading with auto-charting. Built to be extended (flick strength, rotation/hold notes, haptics).
+Playable prototype: title/song-select/results flow, **3D boombox stage** (two speaker-rings,
+mock thumbsticks, flowing notes incl. **hold notes** across 8 directions), gamepad flick
+detection with modifiers, an audio-clock-synced **synth groove** (until you drop the real
+track), hit detection + scoring/combo, demo/attract mode, and custom-track loading with
+auto-charting. Falls back to a 2D canvas renderer if WebGL is unavailable.
+
+## Credits
+- **Three.js** — 3D engine, MIT License. <https://threejs.org>
+- **"Boom Box" model** — by Microsoft, **CC0 1.0** (public domain), from the
+  [Khronos glTF Sample Assets](https://github.com/KhronosGroup/glTF-Sample-Assets).
+- Music is **not** included; see the base-song note above.
