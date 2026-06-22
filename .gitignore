@@ -14,6 +14,9 @@ assets/*
 *.aac
 *.opus
 
+# --- Fan font: keep local, never publish (committed Anton OFL is the published title face) ---
+brand/amity-jack.ttf
+
 # --- Node / tooling (in case a dev server or tool is added later) ---
 node_modules/
 package-lock.json

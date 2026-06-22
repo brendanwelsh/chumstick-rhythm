@@ -1,7 +1,9 @@
-/* Jaws title face (Amity Jack) — from chumthewaters.com */
+/* Title face: Anton (SIL OFL — safe to redistribute/host), aliased as 'Jaws' so all references
+   keep working. (Amity Jack, the closer Jaws font, is a fan font kept local-only / gitignored.) */
 @font-face {
   font-family: 'Jaws';
-  src: url('brand/amity-jack.ttf') format('truetype');
+  src: url('brand/amity-jack.ttf') format('truetype'),   /* local-only if present */
+       url('brand/anton-regular.ttf') format('truetype'); /* committed, OFL fallback */
   font-weight: normal; font-style: normal; font-display: swap;
 }
 
