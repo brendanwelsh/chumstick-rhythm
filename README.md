@@ -55,7 +55,7 @@ only confirms/cancels menus.
 ### Controls
 | Input | Action |
 | --- | --- |
-| **Left stick** | Flick toward **left-speaker** notes (any of 8 directions) |
+| **Left stick** | Flick toward **left-speaker** notes — any angle into the note's **arc** (a forgiving range, not an exact spot) |
 | **Right stick** | Flick toward **right-speaker** notes |
 | **Hold notes** | Flick and *keep* the stick there for the note's length |
 | **L1 / R1 / face buttons** | Held for **modifier** notes |
@@ -87,15 +87,16 @@ Plain JSON (full spec in [`DESIGN.md`](DESIGN.md#5-beatmap-format)):
     "difficulty": "Onset"
   },
   "notes": [
-    { "time": 2.13, "ring": "L", "dir": "up" },
-    { "time": 3.20, "ring": "R", "dir": "right", "mod": "L1" },
-    { "time": 7.55, "ring": "L", "dir": "left", "hold": 0.46 }
+    { "time": 2.13, "ring": "L", "angle": 300 },
+    { "time": 3.20, "ring": "R", "angle": 90, "mod": "L1" },
+    { "time": 7.55, "ring": "L", "angle": 188, "hold": 0.46 }
   ]
 }
 ```
 
 - `ring` — `"L"` or `"R"`
-- `dir` — `up · down · left · right · upleft · upright · downleft · downright`
+- `angle` — degrees, **0 = right, 90 = down, 180 = left, 270 = up** (continuous; flick within a
+  forgiving arc). *Legacy:* a named `dir` (`up/down/left/right/+diagonals`) still works.
 - `mod` *(optional)* — `L1 · R1 · L2 · R2 · cross · circle · square · triangle`
 - `hold` *(optional)* — seconds to keep the stick held
 

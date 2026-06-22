@@ -26,8 +26,7 @@ html, body {
 /* ---------- Boot gate (forces a gesture so audio can start) ---------- */
 #boot {
   position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center;
-  /* translucent so the live boombox shows behind it the instant the page opens */
-  background: radial-gradient(120% 120% at 50% 35%, rgba(8,26,51,0.55), rgba(4,12,28,0.8));
+  background: radial-gradient(120% 120% at 50% 35%, rgba(8,26,51,0.97), rgba(3,9,20,0.99));
   cursor: pointer; text-align: center; transition: opacity .35s;
 }
 #boot.gone { opacity: 0; pointer-events: none; }
@@ -37,18 +36,33 @@ html, body {
 .boot-sub { margin-top: 14px; color: var(--dim); font-size: 14px; letter-spacing: 0.08em; }
 
 /* ---------- Splash controller tester ---------- */
-.triggers { display: flex; gap: 26px; margin-top: 4px; }
-.trig { display: flex; align-items: center; gap: 9px; color: var(--dim); font-weight: 800; font-size: 13px; letter-spacing: 0.06em; }
-.tbar { width: 130px; height: 13px; border-radius: 7px; background: rgba(255,255,255,0.07); overflow: hidden; border: 1px solid rgba(255,255,255,0.16); }
+#tester {
+  display: flex; flex-direction: column; align-items: center; gap: 14px;
+  padding: 18px 24px; border-radius: 16px;
+  background: rgba(6,16,32,0.78); border: 1px solid rgba(95,142,194,0.25);
+  box-shadow: 0 12px 40px rgba(0,0,0,0.5);
+}
+.t-head { font-size: 12px; letter-spacing: 0.14em; color: var(--dim); text-transform: uppercase; }
+.axes { display: flex; gap: 14px; }
+.axis { position: relative; width: 92px; height: 12px; border-radius: 7px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.14); }
+.axis::before { content: ''; position: absolute; left: 50%; top: 0; bottom: 0; width: 1px; background: rgba(255,255,255,0.22); }
+.axis i { position: absolute; top: 50%; left: 50%; width: 12px; height: 12px; border-radius: 50%; background: var(--l); box-shadow: 0 0 10px var(--l); transform: translate(-50%, -50%); transition: left .03s linear; }
+.axis span { position: absolute; right: 3px; top: -16px; font-size: 10px; color: var(--dim); }
+.trigs { display: flex; gap: 24px; }
+.trig { display: flex; align-items: center; gap: 9px; color: var(--dim); font-weight: 800; font-size: 13px; }
+.tbar { width: 120px; height: 12px; border-radius: 7px; background: rgba(255,255,255,0.07); overflow: hidden; border: 1px solid rgba(255,255,255,0.16); }
 .tbar i { display: block; height: 100%; width: 0%; background: linear-gradient(90deg, var(--l), var(--r)); }
+.pips { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; max-width: 420px; }
+.pip { min-width: 26px; padding: 4px 7px; font-size: 12px; font-weight: 700; text-align: center; color: var(--dim);
+  border: 1px solid rgba(255,255,255,0.14); border-radius: 7px; background: rgba(255,255,255,0.04); transition: all .08s; }
+.pip.on { color: #fff; background: var(--r); border-color: var(--r); box-shadow: 0 0 14px rgba(43,159,218,0.8); }
+
 #start-prompt {
   font-size: clamp(16px, 2.4vw, 22px); font-weight: 800; letter-spacing: 0.12em; color: var(--dim);
   padding: 12px 24px; border: 1.5px solid rgba(255,255,255,0.2); border-radius: 12px; transition: all .12s;
 }
-#start-prompt.armed { color: #fff; border-color: var(--l); background: rgba(43,159,218,0.18); box-shadow: 0 0 28px rgba(43,159,218,0.7); }
+#start-prompt.armed { color: #fff; border-color: var(--l); background: rgba(43,159,218,0.2); box-shadow: 0 0 30px rgba(43,159,218,0.8); }
 #start-prompt b { color: var(--text); }
-#axes-readout { font-size: 12px; color: var(--dim); opacity: 0.65; }
-.mono { font-family: ui-monospace, monospace; }
 .ghost-row button { background: transparent; border-color: rgba(255,255,255,0.14); color: var(--dim); font-size: 13px; padding: 8px 16px; }
 
 /* ---------- In-game HUD (calm, minimal) ---------- */
@@ -103,6 +117,16 @@ html, body {
   backdrop-filter: blur(1.5px);
 }
 .screen.hidden { display: none; }
+
+/* Splash: a darker, readable screen; content sits up top and the bottom fades into the
+   speakers below. */
+#title {
+  justify-content: flex-start; padding-top: 3vh; gap: 9px;
+  background: linear-gradient(180deg, rgba(5,12,26,0.96) 0%, rgba(5,12,26,0.9) 52%, rgba(5,12,26,0.32) 100%);
+}
+#title .brand-logo { width: clamp(54px, 8vw, 88px); margin-bottom: 0; }
+.title-logo { font-size: clamp(26px, 5.4vw, 54px) !important; margin-top: 0 !important; white-space: nowrap; }
+#tester { padding: 12px 22px; gap: 10px; }
 
 h2 {
   font-size: clamp(22px, 4vw, 40px); letter-spacing: 0.35em; font-weight: 900;

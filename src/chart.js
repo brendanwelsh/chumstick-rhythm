@@ -43,6 +43,9 @@ export function dirVector(dir) {
   return DIR_VECTORS[dir] || { x: 0, y: 0 };
 }
 
+/** Unit vector for a continuous angle (radians, screen space y-down). */
+export function angleVec(a) { return { x: Math.cos(a), y: Math.sin(a) }; }
+
 /** Human label for a direction (used in debug / fallback rendering). */
 export function dirArrowAngle(dir) {
   const v = dirVector(dir);
@@ -60,14 +63,21 @@ export function normalizeChart(raw) {
 
   const notes = (raw.notes || [])
     .map((n, i) => {
-      const dir = String(n.dir || 'up').toLowerCase();
+      const dirName = String(n.dir || 'up').toLowerCase();
       const ring = String(n.ring || 'L').toUpperCase() === 'R' ? 'R' : 'L';
       const mod = n.mod && MODS[n.mod] ? n.mod : null;
+      // A note's target is a continuous ANGLE. Use a numeric `angle` (degrees) if given,
+      // else derive it from the named `dir`. dir is kept (nearest of 8) for any legacy use.
+      const baseDir = DIR_VECTORS[dirName] ? dirName : 'up';
+      const angle = (n.angle != null && isFinite(n.angle))
+        ? (Number(n.angle) * Math.PI) / 180
+        : Math.atan2(DIR_VECTORS[baseDir].y, DIR_VECTORS[baseDir].x);
       return {
         id: i,
         time: Number(n.time) + offset,
         ring,
-        dir: DIR_VECTORS[dir] ? dir : 'up',
+        angle,
+        dir: vectorToDir(Math.cos(angle), Math.sin(angle)),
         mod,
         hold: Math.max(0, Number(n.hold) || 0), // seconds to keep the stick held; 0 = tap flick
         // runtime state:

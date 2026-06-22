@@ -36,10 +36,20 @@ export class GamepadInput {
   }
 
   // --- gamepad access ------------------------------------------------------
+  // Pick the BEST connected pad — some setups expose several (e.g. a real DualSense plus a
+  // virtual Steam/DS4Windows pad); we prefer a standard-mapped, DualSense-looking one.
   _getPad() {
     const pads = navigator.getGamepads ? navigator.getGamepads() : [];
-    for (const p of pads) if (p && p.axes && p.axes.length >= 2) return p;
-    return null;
+    let best = null, bestScore = -1;
+    for (const p of pads) {
+      if (!p || !p.axes || p.axes.length < 2) continue;
+      let s = 0;
+      if (p.mapping === 'standard') s += 4;
+      if (/dualsense|dualshock|sony|0ce6|054c|wireless controller/i.test(p.id || '')) s += 3;
+      if (p.axes.length >= 4) s += 1;
+      if (s > bestScore) { bestScore = s; best = p; }
+    }
+    return best;
   }
 
   get connected() { return this._getPad() != null; }
@@ -73,7 +83,7 @@ export class GamepadInput {
   heldDir(ring) {
     const s = ring === 'L' ? this.left : this.right;
     if (!s || s.mag < this.holdThreshold) return null;
-    return { dir: vectorToDir(s.x, s.y), x: s.x, y: s.y, mag: s.mag };
+    return { dir: vectorToDir(s.x, s.y), angle: Math.atan2(s.y, s.x), x: s.x, y: s.y, mag: s.mag };
   }
 
   // --- per-frame -----------------------------------------------------------
@@ -113,7 +123,7 @@ export class GamepadInput {
     if (ring === 'L') this.left = live; else this.right = live;
     if (!this._fired[ring] && rawMag >= this.flickThreshold) {
       this._fired[ring] = true;
-      this.flicks.push({ ring, dir: vectorToDir(x, y), mods: this.heldMods(), mag: rawMag, t: songTime });
+      this.flicks.push({ ring, dir: vectorToDir(x, y), angle: Math.atan2(y, x), mods: this.heldMods(), mag: rawMag, t: songTime });
     } else if (this._fired[ring] && rawMag <= this.releaseThreshold) {
       this._fired[ring] = false;
     }

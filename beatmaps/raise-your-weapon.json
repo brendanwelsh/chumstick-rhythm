@@ -12,927 +12,935 @@
     {
       "time": 0.192,
       "ring": "L",
-      "dir": "right"
+      "angle": 0
     },
     {
       "time": 1.099,
       "ring": "R",
-      "dir": "upleft"
+      "angle": 317
     },
     {
       "time": 2.133,
       "ring": "L",
-      "dir": "up"
+      "angle": 274
     },
     {
       "time": 3.125,
       "ring": "R",
-      "dir": "downleft"
+      "angle": 231
     },
     {
       "time": 3.989,
       "ring": "L",
-      "dir": "left"
+      "angle": 188
     },
     {
       "time": 4.821,
       "ring": "R",
-      "dir": "downright"
+      "angle": 145
     },
     {
       "time": 5.675,
       "ring": "L",
-      "dir": "down"
+      "angle": 102
     },
     {
       "time": 6.549,
       "ring": "R",
-      "dir": "upright"
+      "angle": 59
     },
     {
       "time": 7.552,
       "ring": "L",
-      "dir": "right",
+      "angle": 16,
       "hold": 0.459
     },
     {
       "time": 8.469,
       "ring": "R",
-      "dir": "upleft"
+      "angle": 333
     },
     {
       "time": 9.259,
       "ring": "L",
-      "dir": "up"
+      "angle": 290
     },
     {
       "time": 10.251,
       "ring": "R",
-      "dir": "downleft"
+      "angle": 247
     },
     {
       "time": 11.019,
       "ring": "L",
-      "dir": "left",
+      "angle": 204,
       "hold": 0.405
     },
     {
       "time": 11.829,
       "ring": "R",
-      "dir": "downright"
+      "angle": 161,
+      "mod": "R1"
     },
     {
       "time": 12.811,
       "ring": "L",
-      "dir": "down"
+      "angle": 118
     },
     {
       "time": 13.749,
       "ring": "R",
-      "dir": "upright"
+      "angle": 75
     },
     {
       "time": 14.635,
       "ring": "L",
-      "dir": "right",
+      "angle": 32,
       "hold": 0.56
     },
     {
       "time": 15.755,
       "ring": "R",
-      "dir": "upleft"
+      "angle": 349
     },
     {
       "time": 16.64,
       "ring": "L",
-      "dir": "up"
+      "angle": 306
     },
     {
       "time": 17.429,
       "ring": "R",
-      "dir": "downleft"
+      "angle": 263
     },
     {
       "time": 18.517,
       "ring": "L",
-      "dir": "left",
+      "angle": 220,
       "hold": 0.432
     },
     {
       "time": 19.381,
       "ring": "R",
-      "dir": "downright"
+      "angle": 177
     },
     {
       "time": 20.309,
       "ring": "L",
-      "dir": "down"
+      "angle": 134,
+      "mod": "cross"
     },
     {
       "time": 21.131,
       "ring": "R",
-      "dir": "upright"
+      "angle": 91
     },
     {
       "time": 22.133,
       "ring": "L",
-      "dir": "right",
-      "mod": "L1",
+      "angle": 48,
       "hold": 0.683
     },
     {
       "time": 23.499,
       "ring": "R",
-      "dir": "upleft"
+      "angle": 5
     },
     {
       "time": 24.704,
       "ring": "L",
-      "dir": "up"
+      "angle": 322
     },
     {
       "time": 25.899,
       "ring": "R",
-      "dir": "downleft"
+      "angle": 279
     },
     {
       "time": 27.264,
       "ring": "L",
-      "dir": "left",
+      "angle": 236,
       "hold": 0.688
     },
     {
       "time": 28.64,
       "ring": "R",
-      "dir": "downright"
+      "angle": 193
     },
     {
       "time": 29.845,
       "ring": "L",
-      "dir": "down"
+      "angle": 150
     },
     {
       "time": 31.04,
       "ring": "R",
-      "dir": "upright"
+      "angle": 107,
+      "mod": "circle"
     },
     {
       "time": 31.904,
       "ring": "L",
-      "dir": "right",
+      "angle": 64,
       "hold": 0.512
     },
     {
       "time": 32.928,
       "ring": "R",
-      "dir": "upleft"
+      "angle": 21
     },
     {
       "time": 33.781,
       "ring": "L",
-      "dir": "up"
+      "angle": 338
     },
     {
       "time": 34.816,
       "ring": "R",
-      "dir": "downleft"
+      "angle": 295
     },
     {
       "time": 35.84,
       "ring": "L",
-      "dir": "left",
+      "angle": 252,
       "hold": 0.517
     },
     {
       "time": 36.875,
       "ring": "R",
-      "dir": "downright"
+      "angle": 209
     },
     {
       "time": 38.069,
       "ring": "L",
-      "dir": "down"
+      "angle": 166
     },
     {
       "time": 39.275,
       "ring": "R",
-      "dir": "upright"
+      "angle": 123
     },
     {
       "time": 40.405,
       "ring": "L",
-      "dir": "right",
-      "mod": "L1",
+      "angle": 80,
+      "mod": "square",
       "hold": 0.405
     },
     {
       "time": 41.216,
       "ring": "R",
-      "dir": "upleft"
+      "angle": 37
     },
     {
       "time": 42.101,
       "ring": "L",
-      "dir": "up"
+      "angle": 354
     },
     {
       "time": 42.944,
       "ring": "R",
-      "dir": "downleft"
+      "angle": 311
     },
     {
       "time": 43.723,
       "ring": "L",
-      "dir": "left",
+      "angle": 268,
       "hold": 0.507
     },
     {
       "time": 44.736,
       "ring": "R",
-      "dir": "downright"
+      "angle": 225
     },
     {
       "time": 45.835,
       "ring": "L",
-      "dir": "down"
+      "angle": 182
     },
     {
       "time": 46.773,
       "ring": "R",
-      "dir": "upright"
+      "angle": 139
     },
     {
       "time": 47.541,
       "ring": "L",
-      "dir": "right",
+      "angle": 96,
       "hold": 0.405
     },
     {
       "time": 48.352,
       "ring": "R",
-      "dir": "upleft"
+      "angle": 53,
+      "mod": "triangle"
     },
     {
       "time": 49.269,
       "ring": "L",
-      "dir": "up"
+      "angle": 10
     },
     {
       "time": 50.091,
       "ring": "R",
-      "dir": "downleft"
+      "angle": 327
     },
     {
       "time": 50.955,
       "ring": "L",
-      "dir": "left",
+      "angle": 284,
       "hold": 0.421
     },
     {
       "time": 51.797,
       "ring": "R",
-      "dir": "downright"
+      "angle": 241
     },
     {
       "time": 52.597,
       "ring": "L",
-      "dir": "down"
+      "angle": 198
     },
     {
       "time": 53.365,
       "ring": "R",
-      "dir": "upright"
+      "angle": 155
     },
     {
       "time": 54.176,
       "ring": "L",
-      "dir": "right",
-      "mod": "L1",
+      "angle": 112,
       "hold": 0.405
     },
     {
       "time": 54.987,
       "ring": "R",
-      "dir": "upleft"
+      "angle": 69
     },
     {
       "time": 55.787,
       "ring": "L",
-      "dir": "up"
+      "angle": 26,
+      "mod": "L1"
     },
     {
       "time": 56.629,
       "ring": "R",
-      "dir": "downleft"
+      "angle": 343
     },
     {
       "time": 57.461,
       "ring": "L",
-      "dir": "left"
+      "angle": 300
     },
     {
       "time": 58.251,
       "ring": "R",
-      "dir": "downright"
+      "angle": 257
     },
     {
       "time": 59.093,
       "ring": "L",
-      "dir": "down"
+      "angle": 214
     },
     {
       "time": 59.904,
       "ring": "R",
-      "dir": "upright"
+      "angle": 171
     },
     {
       "time": 60.907,
       "ring": "L",
-      "dir": "right",
+      "angle": 128,
       "hold": 0.421
     },
     {
       "time": 61.749,
       "ring": "R",
-      "dir": "upleft"
+      "angle": 85
     },
     {
       "time": 62.571,
       "ring": "L",
-      "dir": "up"
+      "angle": 42
     },
     {
       "time": 63.339,
       "ring": "R",
-      "dir": "downleft"
+      "angle": 359,
+      "mod": "R1"
     },
     {
       "time": 64.139,
       "ring": "L",
-      "dir": "left"
+      "angle": 316
     },
     {
       "time": 64.928,
       "ring": "R",
-      "dir": "downright"
+      "angle": 273
     },
     {
       "time": 65.707,
       "ring": "L",
-      "dir": "down"
+      "angle": 230
     },
     {
       "time": 66.581,
       "ring": "R",
-      "dir": "upright"
+      "angle": 187
     },
     {
       "time": 67.371,
       "ring": "L",
-      "dir": "right",
-      "mod": "L1",
+      "angle": 144,
       "hold": 0.427
     },
     {
       "time": 68.224,
       "ring": "R",
-      "dir": "upleft"
+      "angle": 101
     },
     {
       "time": 69.077,
       "ring": "L",
-      "dir": "up"
+      "angle": 58
     },
     {
       "time": 69.909,
       "ring": "R",
-      "dir": "downleft"
+      "angle": 15
     },
     {
       "time": 70.731,
       "ring": "L",
-      "dir": "left",
+      "angle": 332,
+      "mod": "cross",
       "hold": 0.432
     },
     {
       "time": 71.595,
       "ring": "R",
-      "dir": "downright"
+      "angle": 289
     },
     {
       "time": 72.395,
       "ring": "L",
-      "dir": "down"
+      "angle": 246
     },
     {
       "time": 73.227,
       "ring": "R",
-      "dir": "upright"
+      "angle": 203
     },
     {
       "time": 74.091,
       "ring": "L",
-      "dir": "right",
+      "angle": 160,
       "hold": 0.405
     },
     {
       "time": 74.901,
       "ring": "R",
-      "dir": "upleft"
+      "angle": 117
     },
     {
       "time": 75.701,
       "ring": "L",
-      "dir": "up"
+      "angle": 74
     },
     {
       "time": 76.555,
       "ring": "R",
-      "dir": "downleft"
+      "angle": 31
     },
     {
       "time": 77.376,
       "ring": "L",
-      "dir": "left",
+      "angle": 348,
       "hold": 0.427
     },
     {
       "time": 78.229,
       "ring": "R",
-      "dir": "downright"
+      "angle": 305,
+      "mod": "circle"
     },
     {
       "time": 79.104,
       "ring": "L",
-      "dir": "down"
+      "angle": 262
     },
     {
       "time": 80,
       "ring": "R",
-      "dir": "upright"
+      "angle": 219
     },
     {
       "time": 80.747,
       "ring": "L",
-      "dir": "right",
-      "mod": "L1",
+      "angle": 176,
       "hold": 0.443
     },
     {
       "time": 81.632,
       "ring": "R",
-      "dir": "upleft"
+      "angle": 133
     },
     {
       "time": 82.581,
       "ring": "L",
-      "dir": "up"
+      "angle": 90
     },
     {
       "time": 83.595,
       "ring": "R",
-      "dir": "downleft"
+      "angle": 47
     },
     {
       "time": 84.544,
       "ring": "L",
-      "dir": "left",
+      "angle": 4,
       "hold": 0.432
     },
     {
       "time": 85.408,
       "ring": "R",
-      "dir": "downright"
+      "angle": 321
     },
     {
       "time": 86.4,
       "ring": "L",
-      "dir": "down"
+      "angle": 278,
+      "mod": "square"
     },
     {
       "time": 87.179,
       "ring": "R",
-      "dir": "upright"
+      "angle": 235
     },
     {
       "time": 88.117,
       "ring": "L",
-      "dir": "right",
+      "angle": 192,
       "hold": 0.437
     },
     {
       "time": 88.992,
       "ring": "R",
-      "dir": "upleft"
+      "angle": 149
     },
     {
       "time": 89.813,
       "ring": "L",
-      "dir": "up"
+      "angle": 106
     },
     {
       "time": 90.688,
       "ring": "R",
-      "dir": "downleft"
+      "angle": 63
     },
     {
       "time": 91.691,
       "ring": "L",
-      "dir": "left",
+      "angle": 20,
       "hold": 0.464
     },
     {
       "time": 92.619,
       "ring": "R",
-      "dir": "downright"
+      "angle": 337
     },
     {
       "time": 93.461,
       "ring": "L",
-      "dir": "down"
+      "angle": 294
     },
     {
       "time": 94.293,
       "ring": "R",
-      "dir": "upright"
+      "angle": 251,
+      "mod": "triangle"
     },
     {
       "time": 95.296,
       "ring": "L",
-      "dir": "right",
-      "mod": "L1",
+      "angle": 208,
       "hold": 0.437
     },
     {
       "time": 96.171,
       "ring": "R",
-      "dir": "upleft"
+      "angle": 165
     },
     {
       "time": 97.067,
       "ring": "L",
-      "dir": "up"
+      "angle": 122
     },
     {
       "time": 98.016,
       "ring": "R",
-      "dir": "downleft"
+      "angle": 79
     },
     {
       "time": 98.912,
       "ring": "L",
-      "dir": "left",
+      "angle": 36,
       "hold": 0.581
     },
     {
       "time": 100.075,
       "ring": "R",
-      "dir": "downright"
+      "angle": 353
     },
     {
       "time": 101.003,
       "ring": "L",
-      "dir": "down"
+      "angle": 310
     },
     {
       "time": 101.899,
       "ring": "R",
-      "dir": "upright"
+      "angle": 267
     },
     {
       "time": 102.805,
       "ring": "L",
-      "dir": "right",
+      "angle": 224,
+      "mod": "L1",
       "hold": 0.432
     },
     {
       "time": 103.669,
       "ring": "R",
-      "dir": "upleft"
+      "angle": 181
     },
     {
       "time": 104.576,
       "ring": "L",
-      "dir": "up"
+      "angle": 138
     },
     {
       "time": 105.44,
       "ring": "R",
-      "dir": "downleft"
+      "angle": 95
     },
     {
       "time": 106.283,
       "ring": "L",
-      "dir": "left",
+      "angle": 52,
       "hold": 0.432
     },
     {
       "time": 107.147,
       "ring": "R",
-      "dir": "downright"
+      "angle": 9
     },
     {
       "time": 108.043,
       "ring": "L",
-      "dir": "down"
+      "angle": 326
     },
     {
       "time": 109.003,
       "ring": "R",
-      "dir": "upright"
+      "angle": 283
     },
     {
       "time": 109.888,
       "ring": "L",
-      "dir": "right",
-      "mod": "L1",
+      "angle": 240,
       "hold": 0.507
     },
     {
       "time": 110.901,
       "ring": "R",
-      "dir": "upleft"
+      "angle": 197,
+      "mod": "R1"
     },
     {
       "time": 111.765,
       "ring": "L",
-      "dir": "up"
+      "angle": 154
     },
     {
       "time": 112.672,
       "ring": "R",
-      "dir": "downleft"
+      "angle": 111
     },
     {
       "time": 113.525,
       "ring": "L",
-      "dir": "left",
+      "angle": 68,
       "hold": 0.512
     },
     {
       "time": 114.549,
       "ring": "R",
-      "dir": "downright"
+      "angle": 25
     },
     {
       "time": 115.403,
       "ring": "L",
-      "dir": "down"
+      "angle": 342
     },
     {
       "time": 116.416,
       "ring": "R",
-      "dir": "upright"
+      "angle": 299
     },
     {
       "time": 117.333,
       "ring": "L",
-      "dir": "right",
+      "angle": 256,
       "hold": 0.411
     },
     {
       "time": 118.155,
       "ring": "R",
-      "dir": "upleft"
+      "angle": 213
     },
     {
       "time": 119.008,
       "ring": "L",
-      "dir": "up"
+      "angle": 170,
+      "mod": "cross"
     },
     {
       "time": 120,
       "ring": "R",
-      "dir": "downleft"
+      "angle": 127
     },
     {
       "time": 120.853,
       "ring": "L",
-      "dir": "left",
+      "angle": 84,
       "hold": 0.523
     },
     {
       "time": 121.899,
       "ring": "R",
-      "dir": "downright"
+      "angle": 41
     },
     {
       "time": 122.773,
       "ring": "L",
-      "dir": "down"
+      "angle": 358
     },
     {
       "time": 123.637,
       "ring": "R",
-      "dir": "upright"
+      "angle": 315
     },
     {
       "time": 124.64,
       "ring": "L",
-      "dir": "right",
-      "mod": "L1",
+      "angle": 272,
       "hold": 0.443
     },
     {
       "time": 125.525,
       "ring": "R",
-      "dir": "upleft"
+      "angle": 229
     },
     {
       "time": 126.699,
       "ring": "L",
-      "dir": "up"
+      "angle": 186
     },
     {
       "time": 127.552,
       "ring": "R",
-      "dir": "downleft"
+      "angle": 143,
+      "mod": "circle"
     },
     {
       "time": 128.608,
       "ring": "L",
-      "dir": "left",
+      "angle": 100,
       "hold": 0.469
     },
     {
       "time": 129.547,
       "ring": "R",
-      "dir": "downright"
+      "angle": 57
     },
     {
       "time": 130.315,
       "ring": "L",
-      "dir": "down"
+      "angle": 14
     },
     {
       "time": 131.179,
       "ring": "R",
-      "dir": "upright"
+      "angle": 331
     },
     {
       "time": 132.181,
       "ring": "L",
-      "dir": "right",
+      "angle": 288,
       "hold": 0.512
     },
     {
       "time": 133.205,
       "ring": "R",
-      "dir": "upleft"
+      "angle": 245
     },
     {
       "time": 134.24,
       "ring": "L",
-      "dir": "up"
+      "angle": 202
     },
     {
       "time": 135.115,
       "ring": "R",
-      "dir": "downleft"
+      "angle": 159
     },
     {
       "time": 135.947,
       "ring": "L",
-      "dir": "left",
+      "angle": 116,
+      "mod": "square",
       "hold": 0.496
     },
     {
       "time": 136.939,
       "ring": "R",
-      "dir": "downright"
+      "angle": 73
     },
     {
       "time": 137.867,
       "ring": "L",
-      "dir": "down"
+      "angle": 30
     },
     {
       "time": 138.816,
       "ring": "R",
-      "dir": "upright"
+      "angle": 347
     },
     {
       "time": 139.723,
       "ring": "L",
-      "dir": "right",
-      "mod": "L1",
+      "angle": 304,
       "hold": 0.448
     },
     {
       "time": 140.619,
       "ring": "R",
-      "dir": "upleft"
+      "angle": 261
     },
     {
       "time": 141.664,
       "ring": "L",
-      "dir": "up"
+      "angle": 218
     },
     {
       "time": 142.603,
       "ring": "R",
-      "dir": "downleft"
+      "angle": 175
     },
     {
       "time": 143.488,
       "ring": "L",
-      "dir": "left",
+      "angle": 132,
       "hold": 0.459
     },
     {
       "time": 144.405,
       "ring": "R",
-      "dir": "downright"
+      "angle": 89,
+      "mod": "triangle"
     },
     {
       "time": 145.216,
       "ring": "L",
-      "dir": "down"
+      "angle": 46
     },
     {
       "time": 146.123,
       "ring": "R",
-      "dir": "upright"
+      "angle": 3
     },
     {
       "time": 147.029,
       "ring": "L",
-      "dir": "right",
+      "angle": 320,
       "hold": 0.443
     },
     {
       "time": 147.915,
       "ring": "R",
-      "dir": "upleft"
+      "angle": 277
     },
     {
       "time": 148.843,
       "ring": "L",
-      "dir": "up"
+      "angle": 234
     },
     {
       "time": 149.717,
       "ring": "R",
-      "dir": "downleft"
+      "angle": 191
     },
     {
       "time": 150.805,
       "ring": "L",
-      "dir": "left",
+      "angle": 148,
       "hold": 0.469
     },
     {
       "time": 151.744,
       "ring": "R",
-      "dir": "downright"
+      "angle": 105
     },
     {
       "time": 152.629,
       "ring": "L",
-      "dir": "down"
+      "angle": 62,
+      "mod": "L1"
     },
     {
       "time": 153.611,
       "ring": "R",
-      "dir": "upright"
+      "angle": 19
     },
     {
       "time": 154.432,
       "ring": "L",
-      "dir": "right",
-      "mod": "L1",
+      "angle": 336,
       "hold": 0.448
     },
     {
       "time": 155.328,
       "ring": "R",
-      "dir": "upleft"
+      "angle": 293
     },
     {
       "time": 156.363,
       "ring": "L",
-      "dir": "up"
+      "angle": 250
     },
     {
       "time": 157.227,
       "ring": "R",
-      "dir": "downleft"
+      "angle": 207
     },
     {
       "time": 158.048,
       "ring": "L",
-      "dir": "left",
+      "angle": 164,
       "hold": 0.469
     },
     {
       "time": 158.987,
       "ring": "R",
-      "dir": "downright"
+      "angle": 121
     },
     {
       "time": 159.936,
       "ring": "L",
-      "dir": "down"
+      "angle": 78
     }
   ]
 }

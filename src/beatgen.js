@@ -70,19 +70,23 @@ function detectBPM(flux, fps, { min = 70, max = 200 } = {}) {
   return Math.round(bestBpm);
 }
 
-/** Deterministic, flowing direction pattern across all 8 directions. */
-function pickDir(i, ring) {
-  return DIRS[((i * 3) + (ring === 'R' ? 2 : 0)) % 8]; // offset rings so hands differ
+// Continuous, flowing ANGLE pattern (degrees) — not snapped to 8 directions. A golden-ish step
+// drifts the angle around the dial so notes land at varied headings; hands offset by 180°.
+function pickAngle(i, ring) {
+  const a = (i * 137 + (ring === 'R' ? 180 : 0)) % 360; // 0..360
+  return Math.round(a);
 }
 
-/** Turn onset times into notes: ring/dir, sparse modifiers, and holds across big gaps. */
+const MOD_CYCLE = ['L1', 'R1', 'cross', 'circle', 'square', 'triangle'];
+
+/** Turn onset times into notes: ring/angle, varied button mods, and holds across big gaps. */
 function notesFromTimes(times) {
   return times.map((t, i) => {
     const ring = i % 2 === 0 ? 'L' : 'R';
-    const note = { time: +t.toFixed(3), ring, dir: pickDir(i, ring) };
+    const note = { time: +t.toFixed(3), ring, angle: pickAngle(i, ring) };
     const gap = i < times.length - 1 ? times[i + 1] - t : 1;
     if (i > 4 && gap > 0.8 && i % 4 === 0) note.hold = +Math.min(gap * 0.5, 1.2).toFixed(3);
-    if (i > 8 && i % 16 === 8) note.mod = ring === 'L' ? 'L1' : 'R1';
+    if (i > 6 && i % 9 === 4) note.mod = MOD_CYCLE[(i / 9 | 0) % MOD_CYCLE.length]; // integrate buttons
     return note;
   });
 }
@@ -137,7 +141,9 @@ export function generateBeatmap(buffer, opts = {}) {
 /** Serialize a beatmap to a downloadable, pretty JSON string. */
 export function chartToJSON(chart) {
   const notes = chart.notes.map((n) => {
-    const o = { time: n.time, ring: n.ring, dir: n.dir };
+    const o = { time: n.time, ring: n.ring };
+    if (n.angle != null) o.angle = n.angle; else o.dir = n.dir;
+    if (n.hold) o.hold = n.hold;
     if (n.mod) o.mod = n.mod;
     return o;
   });

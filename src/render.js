@@ -8,7 +8,8 @@
 //
 // API: new Renderer(canvas) · drawGame(state) · addEffect(e) · addFlick(f) · .effects .flickFx .pulse
 
-import { dirVector, MODS } from './chart.js';
+import { dirVector, angleVec, MODS } from './chart.js';
+import { HIT_ARC } from './scoring.js';
 
 const COL = {
   L: '#36d6f5', R: '#2b9fda',                 // cyan + Grooveshark blue
@@ -206,7 +207,8 @@ export class Renderer {
     }
   }
 
-  // Notes slide IN from a long runway outside the speaker toward the rim at the push angle.
+  // Notes slide IN from a long runway toward the speaker at a continuous ANGLE. The hittable
+  // RANGE is drawn as a glowing ARC on the rim — flick anywhere into that arc to land it.
   _notes(ring, chart, songTime) {
     const { ctx } = this;
     const sp = this.speakers[ring];
@@ -215,28 +217,29 @@ export class Renderer {
       if (n.ring !== ring || n.judged) continue;
       const dt = n.time - songTime;
       if (dt > chart.meta.approachTime || dt < -0.16) continue;
-      const v = dirVector(n.dir);
-      const a = Math.atan2(v.y, v.x);
+      const v = angleVec(n.angle);
       const p = Math.max(0, Math.min(1, 1 - dt / chart.meta.approachTime));
       const dist = sp.r + runway * (1 - p);
       const x = sp.x + v.x * dist, y = sp.y + v.y * dist;
       const c = ringColor(ring);
       const near = Math.abs(dt) < 0.1;
 
-      // target on the rim (where to push), bright/white in the hit window
-      const rx = sp.x + v.x * sp.r, ry = sp.y + v.y * sp.r;
-      ctx.beginPath(); ctx.arc(rx, ry, sp.r * (near ? 0.2 : 0.13), 0, Math.PI * 2);
-      ctx.strokeStyle = this._alpha(near ? '#ffffff' : c, near ? 1 : 0.5); ctx.lineWidth = near ? 4 : 2; ctx.stroke();
+      // the hittable arc (range) on the rim
+      ctx.beginPath(); ctx.lineCap = 'round';
+      ctx.arc(sp.x, sp.y, sp.r, n.angle - HIT_ARC, n.angle + HIT_ARC);
+      ctx.strokeStyle = this._alpha(near ? '#ffffff' : c, (near ? 0.95 : 0.4) * Math.min(1, p * 2));
+      ctx.lineWidth = sp.r * (near ? 0.18 : 0.11); ctx.stroke();
+      ctx.lineCap = 'butt';
 
       // travelling marker: a chevron pointing toward the speaker (the push direction)
-      ctx.save(); ctx.translate(x, y); ctx.rotate(a + Math.PI);
+      ctx.save(); ctx.translate(x, y); ctx.rotate(n.angle + Math.PI);
       ctx.globalAlpha = Math.min(1, p * 2 + 0.2);
       ctx.shadowColor = c; ctx.shadowBlur = 12; ctx.fillStyle = near ? '#ffffff' : c;
       const s = sp.r * 0.32;
       ctx.beginPath(); ctx.moveTo(s, 0); ctx.lineTo(-s * 0.55, -s * 0.7); ctx.lineTo(-s * 0.2, 0); ctx.lineTo(-s * 0.55, s * 0.7); ctx.closePath(); ctx.fill();
       ctx.restore(); ctx.globalAlpha = 1;
 
-      if (n.mod) { ctx.fillStyle = '#fff'; ctx.font = `700 ${sp.r * 0.3}px system-ui`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(MODS[n.mod] || n.mod, x, y - sp.r * 0.5); }
+      if (n.mod) { ctx.fillStyle = '#fff'; ctx.font = `700 ${sp.r * 0.34}px system-ui`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(MODS[n.mod] || n.mod, x, y - sp.r * 0.5); }
     }
   }
 
@@ -279,7 +282,7 @@ export class Renderer {
       if (e.ring !== ring) continue;
       const age = (songTime - e.t0) / e.dur;
       const c = e.judgement === 'perfect' ? COL.perfect : e.judgement === 'good' ? COL.good : COL.miss;
-      const v = dirVector(e.dir);
+      const v = e.angle != null ? angleVec(e.angle) : dirVector(e.dir);
       const rx = sp.x + v.x * sp.r, ry = sp.y + v.y * sp.r;
       ctx.beginPath(); ctx.arc(rx, ry, sp.r * 0.25 * (1 + age * 1.5), 0, Math.PI * 2);
       ctx.strokeStyle = this._alpha(c, (1 - age) * 0.9); ctx.lineWidth = 4 * (1 - age); ctx.stroke();

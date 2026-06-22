@@ -39,16 +39,19 @@
   <section id="title" class="screen">
     <img class="brand-logo" src="brand/chum-logo.png" alt="" />
     <h1 class="title-logo">CHUMSTICK RHYTHM</h1>
-    <p class="tagline">flick the sticks · ride the beat</p>
     <p id="title-status" class="status">…</p>
 
-    <div class="triggers">
-      <div class="trig"><span>L2</span><div class="tbar"><i id="trig-l2"></i></div></div>
-      <div class="trig"><span>R2</span><div class="tbar"><i id="trig-r2"></i></div></div>
+    <div id="tester">
+      <div class="t-head">CONTROLLER TEST — move the sticks &amp; press buttons</div>
+      <div id="axes-bars" class="axes"></div>
+      <div class="trigs">
+        <div class="trig"><span>L2</span><div class="tbar"><i id="trig-l2"></i></div></div>
+        <div class="trig"><span>R2</span><div class="tbar"><i id="trig-r2"></i></div></div>
+      </div>
+      <div id="btn-pips" class="pips"></div>
     </div>
-    <div id="start-prompt">PULL <b>L2 + R2</b> TO START</div>
-    <p id="axes-readout" class="mono">…</p>
 
+    <div id="start-prompt">PULL <b>L2 + R2</b> TO START</div>
     <div class="row ghost-row">
       <button id="btn-start">browse songs</button>
       <button id="btn-demo">▶ watch demo</button>

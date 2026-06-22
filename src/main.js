@@ -1,10 +1,10 @@
 // main.js — CHUMSTICK RHYTHM entry point. State machine + game loop wiring all modules together.
 
 import { AudioEngine } from './audio.js';
-import { GamepadInput } from './input.js';
+import { GamepadInput, BUTTON_LABELS } from './input.js';
 import { Renderer } from './render.js';
 import { Scorer } from './scoring.js';
-import { normalizeChart, dirVector } from './chart.js';
+import { normalizeChart, angleVec } from './chart.js';
 import { generateBeatmap, chartToJSON } from './beatgen.js';
 
 const LEAD_IN = 3.0; // seconds of "3..2..1" count-in before the music
@@ -268,8 +268,8 @@ class Game {
     // fire a perfect flick for each note as its time arrives
     for (const n of this.chart.notes) {
       if (!n.judged && !n.holdActive && n.time <= songTime && n.time > songTime - 0.13) {
-        this.input.flicks.push({ ring: n.ring, dir: n.dir, mods: n.mod ? [n.mod] : [], mag: 1, t: n.time });
-        this._demoDefl[n.ring] = { v: dirVector(n.dir), m: 0.95, until: n.hold > 0 ? n.time + n.hold : null };
+        this.input.flicks.push({ ring: n.ring, dir: n.dir, angle: n.angle, mods: n.mod ? [n.mod] : [], mag: 1, t: n.time });
+        this._demoDefl[n.ring] = { v: angleVec(n.angle), m: 0.95, until: n.hold > 0 ? n.time + n.hold : null };
       }
     }
     const dot = (d) => ({ x: d.v.x * d.m, y: d.v.y * d.m, mag: d.m });
@@ -334,8 +334,28 @@ class Game {
     return '🎮 connect a controller, then PRESS A BUTTON to wake it';
   }
 
-  // The splash doubles as a live controller tester (the on-screen sticks move with your sticks).
+  _buildTester() {
+    if (this._testerBuilt) return;
+    const axes = this._el('axes-bars');
+    this._axisDots = [];
+    for (let i = 0; i < 6; i++) {
+      const bar = document.createElement('div'); bar.className = 'axis';
+      const dot = document.createElement('i'); bar.appendChild(dot);
+      const lbl = document.createElement('span'); lbl.textContent = i; bar.appendChild(lbl);
+      axes.appendChild(bar); this._axisDots.push(dot);
+    }
+    const pips = this._el('btn-pips');
+    this._pips = [];
+    for (const label of BUTTON_LABELS) {
+      const p = document.createElement('span'); p.className = 'pip'; p.textContent = label;
+      pips.appendChild(p); this._pips.push(p);
+    }
+    this._testerBuilt = true;
+  }
+
+  // The splash IS a live controller tester: axis bars move, button pips light, triggers fill.
   _updateSplash() {
+    this._buildTester();
     const inp = this.input;
     this._el('title-status').textContent = this._controllerStatus();
     const t = inp.triggers();
@@ -343,10 +363,16 @@ class Game {
     this._el('trig-r2').style.width = Math.round(Math.min(1, t.R2) * 100) + '%';
     const both = inp.bothTriggers();
     this._el('start-prompt').classList.toggle('armed', both);
-    this._el('axes-readout').textContent = inp.connected
-      ? `${inp.axesCount} axes · ${inp.mapping} · move the sticks to test`
-      : 'no controller detected — connect one and press a button';
-    // Start on an L2+R2 pull (rising edge).
+
+    const ax = inp.allAxes();
+    this._axisDots.forEach((dot, i) => {
+      const v = ax[i];
+      dot.parentElement.style.opacity = v == null ? 0.25 : 1;
+      dot.style.left = (((v == null ? 0 : v) + 1) / 2 * 100) + '%';
+    });
+    const bs = inp.buttonStates();
+    this._pips.forEach((p, i) => p.classList.toggle('on', !!(bs[i] && bs[i].pressed)));
+
     if (both && !this._l2r2was) { this._l2r2was = true; this._startUrlChart(BUILTIN[0].url); }
     if (!both) this._l2r2was = false;
   }
