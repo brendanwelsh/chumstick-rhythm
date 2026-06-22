@@ -92,6 +92,8 @@ export class Renderer {
     }
 
     this._console(scorer, chart);
+    if (chart && songTime < 0) this._countIn(songTime);
+    if (state.demo) this._demoBadge();
     ctx.restore();
 
     if (this.glitch > 0.01) this._glitchOverlay();
@@ -147,8 +149,8 @@ export class Renderer {
       ctx.fillStyle = 'rgba(255,255,255,0.7)'; ctx.beginPath(); ctx.arc(W * 0.37, -H * 0.12, H * 0.07, 0, Math.PI * 2); ctx.fill();
       ctx.restore(); ctx.globalAlpha = 1;
     };
-    draw(this.w * 0.13, 18, this.h * 0.18, 0.3);      // small far shark
-    draw(this.w * 0.26, 40, this.h * 0.31, 0.7);      // big near shark
+    draw(this.w * 0.13, 42, this.h * 0.18, 0.3);      // small far shark
+    draw(this.w * 0.26, 88, this.h * 0.31, 0.7);      // big near shark
   }
 
   _logoMark() {
@@ -314,6 +316,24 @@ export class Renderer {
     }
     ctx.fillStyle = COL.dim; ctx.font = `700 ${d.h * 0.1}px ui-monospace, monospace`; ctx.textBaseline = 'bottom';
     ctx.fillText(`${String(sc.score).padStart(7, '0')}  ${(sc.accuracy * 100).toFixed(1)}%`, d.x + d.w / 2, d.y + d.h * 0.97);
+  }
+
+  _countIn(songTime) {
+    const { ctx, w, h } = this;
+    ctx.save();
+    ctx.fillStyle = COL.text; ctx.globalAlpha = 0.85;
+    ctx.font = `900 ${h * 0.18}px system-ui`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(String(Math.ceil(-songTime)), w / 2, h * 0.34);
+    ctx.restore();
+  }
+
+  _demoBadge() {
+    const { ctx, w, h } = this;
+    ctx.save();
+    ctx.globalAlpha = 0.7; ctx.fillStyle = COL.dim;
+    ctx.font = `700 ${Math.max(11, h * 0.022)}px system-ui`; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+    ctx.fillText('▶ DEMO · auto-play — Back/Esc to exit', w / 2, h - 14);
+    ctx.restore();
   }
 
   _glitchOverlay() {

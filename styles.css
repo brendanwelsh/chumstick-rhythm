@@ -52,8 +52,8 @@ html, body {
 .ghost-row button { background: transparent; border-color: rgba(255,255,255,0.14); color: var(--dim); font-size: 13px; padding: 8px 16px; }
 
 /* ---------- In-game HUD (calm, minimal) ---------- */
-#hud { position: fixed; inset: 0; z-index: 5; pointer-events: none; font-family: ui-monospace, monospace; }
-#hud.hidden { display: none; }
+/* HUD is drawn on the canvas now (score/combo/judge/count-in); keep the DOM HUD hidden. */
+#hud, #hud.hidden { display: none; }
 .hud-top {
   position: absolute; top: 18px; left: 0; right: 0; display: flex; justify-content: space-between;
   padding: 0 26px; font-size: 16px; color: rgba(233,233,255,0.7); letter-spacing: 0.08em;
