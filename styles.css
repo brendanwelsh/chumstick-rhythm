@@ -250,6 +250,16 @@ button.big {
   background: rgba(255,255,255,0.04); color: var(--text);
 }
 
+/* ---------- Bring-your-own audio (song select) ---------- */
+.byo { width: min(560px, 92vw); margin: 2px auto 0; text-align: left; }
+.byo label { display: flex; flex-direction: column; gap: 8px; font-size: 14px; font-weight: 600; color: var(--dim); }
+.byo label b { color: var(--text); } .byo label small { color: var(--dim); font-weight: 400; }
+.byo input[type=file] {
+  padding: 9px; border: 1px dashed rgba(255,255,255,0.25); border-radius: 10px;
+  background: rgba(255,255,255,0.04); color: var(--text); font-weight: 400;
+}
+.byo .status { font-size: 13px; margin-top: 6px; min-height: 1em; color: var(--green); }
+
 /* ---------- Settings ---------- */
 .settings-form { display: flex; flex-direction: column; gap: 18px; width: min(560px, 92vw); }
 .set-row {

@@ -95,7 +95,13 @@
       <button id="btn-custom">＋ Load custom track</button>
       <button id="btn-songs-back" data-back>← Back</button>
     </div>
-    <p class="hint">Built-in charts play with a <b>metronome</b> until you drop the matching audio into <code>assets/</code>.</p>
+    <div id="bundled-audio" class="byo">
+      <label>The real song isn't bundled <small>(copyright)</small> — pick your local <b>“Raise Your Weapon”</b> file to hear it:
+        <input id="bundled-audio-input" type="file" accept="audio/*" />
+      </label>
+      <p id="bundled-audio-status" class="status"></p>
+    </div>
+    <p class="hint">No file? Built-in charts still play in full on a <b>synth groove</b> locked to the BPM. Your audio stays in your browser — nothing is uploaded.</p>
   </section>
 
   <!-- ============ CUSTOM ============ -->

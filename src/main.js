@@ -43,6 +43,8 @@ class Game {
     this.chart = null;
     this.focusIndex = 0;
     this._generated = null;   // last auto-generated chart, for download
+    this._localAudioBuffer = null;  // a player-picked audio file for the bundled track (online: no
+                                    // copyrighted audio is hosted, so this is how you hear the real song)
     this._demoDefl = { L: { v: { x: 0, y: 0 }, m: 0 }, R: { v: { x: 0, y: 0 }, m: 0 } };
 
     this.settings = this._loadSettings();
@@ -53,6 +55,7 @@ class Game {
     this._buildDifficulty();
     this._wireDom();
     this._wireSettings();
+    this._wireBundledAudio();
     this._unlockAudioOnGesture();
     this.showScreen('title');
 
@@ -142,6 +145,27 @@ class Game {
   }
 
   _diffLabel() { return (DIFFICULTIES[this.difficulty] || DIFFICULTIES.normal).label; }
+
+  // Bundled tracks ship without audio (copyright) so online they'd play the synth groove. Let the
+  // player attach their OWN local file; it pairs with the hand-authored chart. Stays in-browser.
+  _wireBundledAudio() {
+    const input = this._el('bundled-audio-input');
+    const status = this._el('bundled-audio-status');
+    if (!input) return;
+    input.addEventListener('change', async (e) => {
+      const f = e.target.files[0];
+      if (!f) return;
+      try {
+        status.textContent = 'Decoding ' + f.name + '…';
+        await this.audio.resume();
+        this._localAudioBuffer = await this.audio.decodeArrayBuffer(await f.arrayBuffer());
+        status.textContent = '♪ ' + f.name + ' loaded — built-in tracks now play with it.';
+      } catch (err) {
+        this._localAudioBuffer = null;
+        status.textContent = 'Could not read that file: ' + err.message;
+      }
+    });
+  }
 
   _wireDom() {
     this._el('btn-start').addEventListener('click', () => this.showScreen('songselect'));
@@ -294,7 +318,10 @@ class Game {
     this.audio.clearBuffer();
     if (raw.meta && raw.meta.audio) {
       const ok = await this.audio.tryLoadUrl('assets/' + raw.meta.audio);
-      if (!ok) console.info(`No audio at assets/${raw.meta.audio} — using metronome.`);
+      // Online there's no copyrighted audio hosted (gitignored). If the player has supplied their
+      // own local file for the bundled track, use that; otherwise fall back to the synth groove.
+      if (!ok && this._localAudioBuffer) this.audio.setBuffer(this._localAudioBuffer);
+      else if (!ok) console.info(`No audio at assets/${raw.meta.audio} — using synth groove.`);
     }
   }
 
