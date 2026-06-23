@@ -42,10 +42,10 @@ buzzes** for a beat. The song is the reward and the punishment.
 It needs a real `http://` origin (Gamepad API + ES modules), so serve the folder:
 
 ```bash
-python -m http.server 8000      # …or:  npx serve .
+python -m http.server 8001      # …or:  npx serve .   (8000 is chumball's port)
 ```
 
-Open **http://localhost:8000**, then:
+Open **http://localhost:8001**, then:
 
 1. **Click** once to enable sound.
 2. Plug in / pair a **DualSense** and **press a button to wake it** — browsers hide a gamepad
