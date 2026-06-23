@@ -1,10 +1,11 @@
-// render.js — CHUMSTICK RHYTHM, front-facing STEREO on a Grooveshark-blue sky (2D canvas).
+// render.js — CHUMSTICK RHYTHM, an underwater Jaws stage (2D canvas).
 //
-// A small boombox sits centred on a blue sky with a shark swimming by. Two round speakers
-// (left/right) each hold a realistic analog THUMBSTICK in the centre; the stick tracks your
-// real stick at all times. Notes approach each speaker from OUTSIDE (a long runway so you can
-// read them) toward the rim at their direction's angle — push the stick that way on time.
-// Hits keep the song clean; a MISS glitches the screen (audio glitches in audio.js).
+// A deep-ocean gradient (bright surface → deep dark) with god-rays, bubbles, a rising open-jaws
+// shark, a cruising fin and floating barrels. Two circular SHARK MOUTHS (left/right rings) sit on
+// the stage; the player's aim cursor is the shark's tongue licking out from each throat. Notes are
+// fish swimming in toward the mouths along a runway — flow your stick into the bite arc / trace the
+// moving line / spin to fill the gauge. Hits keep the song clean; a MISS glitches the screen
+// (audio glitches in audio.js). L = cyan, R = orange (kept distinct so you can tell the sides).
 //
 // API: new Renderer(canvas) · drawGame(state) · addEffect(e) · addFlick(f) · .effects .flickFx .pulse
 
@@ -31,6 +32,7 @@ export class Renderer {
     this.flickFx = [];
     this.pulse = 0;
     this.glitch = 0;
+    this._banner = null;   // transient centred flourish (combo milestones), {text, life}
     this._t = 0;
     this.trail = { L: [], R: [] };   // recent stick-cap positions per ring (the "drawn line")
     this.logo = new Image();
@@ -123,6 +125,7 @@ export class Renderer {
     // HUD lives at the very top edge (out of the playfield): progress bar + score/combo/accuracy
     this._topbar(scorer, chart, songTime);
 
+    if (this._banner) this._drawBanner();
     if (chart && songTime < 0) this._countIn(songTime);
     if (state.demo) this._demoBadge();
     ctx.restore();
@@ -314,6 +317,7 @@ export class Renderer {
   // visuals show a target to ride into, and light up while your stick is satisfying them.
   _notes(ring, chart, songTime) {
     const sp = this.speakers[ring];
+    const arcScale = chart.meta.arcScale || 1;   // bite-zone widens/narrows with difficulty
     for (const n of chart.notes) {
       if (n.ring !== ring || n.judged) continue;
       const dt = n.time - songTime;
@@ -321,8 +325,8 @@ export class Renderer {
       const p = Math.max(0, Math.min(1, 1 - dt / chart.meta.approachTime)); // 0 far → 1 at the rim
       if (n.type === 'spin') this._noteSpin(sp, n, songTime, p);
       else if (n.type === 'slide') this._noteSlide(sp, n, songTime, p);
-      else if (n.type === 'hold') this._noteHold(sp, n, songTime, p);
-      else this._noteTap(sp, n, songTime, p, dt);
+      else if (n.type === 'hold') this._noteHold(sp, n, songTime, p, arcScale);
+      else this._noteTap(sp, n, songTime, p, dt, arcScale);
       if (n.mod) this._modGlyph(sp, n, p);
     }
   }
@@ -341,21 +345,22 @@ export class Renderer {
     ctx.restore();
   }
 
-  _noteTap(sp, n, songTime, p, dt) {
+  _noteTap(sp, n, songTime, p, dt, arcScale = 1) {
     const c = ringColor(n.ring);
     const near = Math.abs(dt) < 0.12;
     // bite zone on the teeth — be anywhere in this arc as the pearl crosses
-    this._rimArc(sp, n.angle, TAP_ARC, c, (near ? 0.95 : 0.4) * Math.min(1, p * 2), sp.r * (near ? 0.2 : 0.11), n.lit);
+    this._rimArc(sp, n.angle, TAP_ARC * arcScale, c, (near ? 0.95 : 0.4) * Math.min(1, p * 2), sp.r * (near ? 0.2 : 0.11), n.lit);
     // the fish swimming in toward the mouth (facing inward)
     const rp = this._runwayPt(sp, n.angle, p);
     this._fish(rp.x, rp.y, sp.r * (near ? 0.26 : 0.2), n.ring, Math.min(1, p * 2 + 0.2), n.angle + Math.PI);
   }
 
-  _noteHold(sp, n, songTime, p) {
+  _noteHold(sp, n, songTime, p, arcScale = 1) {
     const c = ringColor(n.ring);
+    const arc = TAP_ARC * arcScale;
     // base arc (where to park), thicker; a brighter overlay fills with coverage
-    this._rimArc(sp, n.angle, TAP_ARC, c, 0.30 * Math.min(1, p * 2), sp.r * 0.16, false);
-    if (n.coverage > 0) this._rimArc(sp, n.angle, TAP_ARC * n.coverage, c, 0.9, sp.r * 0.2, n.lit);
+    this._rimArc(sp, n.angle, arc, c, 0.30 * Math.min(1, p * 2), sp.r * 0.16, false);
+    if (n.coverage > 0) this._rimArc(sp, n.angle, arc * n.coverage, c, 0.9, sp.r * 0.2, n.lit);
     // a fish swimming in before the head
     if (songTime < n.time) {
       const rp = this._runwayPt(sp, n.angle, p);
@@ -562,6 +567,25 @@ export class Renderer {
     ctx.font = `900 ${h * 0.18}px system-ui`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.fillText(String(Math.ceil(-songTime)), w / 2, h * 0.34);
     ctx.restore();
+  }
+
+  /** Trigger a transient centred banner (e.g. "50 COMBO") that scales up and fades. */
+  showBanner(text) { this._banner = { text, life: 1 }; this.pulse = 1; }
+
+  _drawBanner() {
+    const { ctx, w, h } = this;
+    const b = this._banner;
+    const grow = 1 + (1 - b.life) * 0.45;
+    ctx.save();
+    ctx.globalAlpha = Math.min(1, b.life * 1.5);
+    ctx.translate(w / 2, h * 0.3); ctx.scale(grow, grow);
+    ctx.shadowColor = 'rgba(196,32,32,0.85)'; ctx.shadowBlur = 26;
+    ctx.fillStyle = COL.blood; ctx.font = `${Math.max(30, h * 0.072)}px Jaws, Impact, sans-serif`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(b.text, 0, 0);
+    ctx.restore();
+    b.life -= 0.018;
+    if (b.life <= 0) this._banner = null;
   }
 
   _demoBadge() {

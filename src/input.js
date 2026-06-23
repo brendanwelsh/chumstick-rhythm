@@ -13,12 +13,26 @@ import { vectorToDir } from './chart.js';
 const MOD_BUTTONS = { 4: 'L1', 5: 'R1', 6: 'L2', 7: 'R2', 0: 'cross', 1: 'circle', 2: 'square', 3: 'triangle' };
 export const BUTTON_LABELS = ['✕', '◯', '▢', '△', 'L1', 'R1', 'L2', 'R2', 'Share', 'Options', 'L3', 'R3', '↑', '↓', '←', '→', 'PS'];
 
+// Haptic cues for the controller's two rumble motors (dual-rumble): `strong` = the low-frequency
+// (heavy) motor, `weak` = the high-frequency (crisp) motor, `dur` in ms. A hit is a crisp tick; a
+// miss is a heavy buzz that pairs with the audio glitch; the sustain is a soft hum while you're on
+// a hold/slide/spin. These ARE the hit feedback — by design a hit makes no sound (the song stays
+// clean), so the controller is where "you nailed it" is felt.
+const RUMBLE = {
+  perfect:   { strong: 0.16, weak: 0.85, dur: 55 },
+  good:      { strong: 0.10, weak: 0.45, dur: 40 },
+  miss:      { strong: 0.90, weak: 0.22, dur: 170 },
+  milestone: { strong: 0.55, weak: 0.70, dur: 130 },
+  sustain:   { strong: 0.06, weak: 0.22, dur: 110 },
+};
+
 export class GamepadInput {
   constructor() {
     this.flickThreshold = 0.5;
     this.releaseThreshold = 0.3;
     this.holdThreshold = 0.45;
     this.deadzone = 0.12;
+    this.hapticScale = 0.8;      // 0..1 master haptics intensity (player setting)
     this.padId = null;
     this._pad = null;            // last gamepad snapshot (for the tester)
 
@@ -28,6 +42,7 @@ export class GamepadInput {
     this._fired = { L: false, R: false };
     this.left = { x: 0, y: 0, mag: 0 };
     this.right = { x: 0, y: 0, mag: 0 };
+    this.demoMods = [];          // mods the attract auto-play is "holding" this frame (see main.js)
     this.flicks = [];
     this.menu = [];
     this._prevButtons = {};
@@ -83,6 +98,31 @@ export class GamepadInput {
   rawSticks() {
     const p = this._pad; if (!p) return { lx: 0, ly: 0, rx: 0, ry: 0 };
     return this._stickAxes(p);
+  }
+
+  // --- haptics -------------------------------------------------------------
+  // Play a dual-rumble effect on the active pad. Magnitudes are scaled by the player's haptics
+  // setting (hapticScale); silently no-ops where the browser/pad doesn't expose vibration.
+  rumble(strong = 0.5, weak = 0.5, dur = 90) {
+    const s = this.hapticScale;
+    if (s <= 0) return;
+    const pad = this._getPad();
+    const act = pad && (pad.vibrationActuator || (pad.hapticActuators && pad.hapticActuators[0]));
+    if (!act || typeof act.playEffect !== 'function') return;
+    try {
+      act.playEffect('dual-rumble', {
+        startDelay: 0,
+        duration: Math.max(0, dur),
+        weakMagnitude: Math.max(0, Math.min(1, weak * s)),
+        strongMagnitude: Math.max(0, Math.min(1, strong * s)),
+      }).catch(() => {});
+    } catch { /* effect type unsupported on this pad */ }
+  }
+
+  /** Fire a named haptic cue ('perfect'|'good'|'miss'|'milestone'|'sustain'). */
+  rumbleCue(kind) {
+    const r = RUMBLE[kind];
+    if (r) this.rumble(r.strong, r.weak, r.dur);
   }
 
   /** Direction the stick is currently held in (for hold notes), or null if below threshold. */
@@ -143,7 +183,7 @@ export class GamepadInput {
   }
 
   heldMods() {
-    const out = new Set();
+    const out = new Set(this.demoMods);   // attract auto-play "holds" these
     const pad = this._pad;
     if (pad) for (const [i, name] of Object.entries(MOD_BUTTONS)) {
       const b = pad.buttons[i];

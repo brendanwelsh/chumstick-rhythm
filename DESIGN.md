@@ -1,18 +1,21 @@
 # DESIGN.md — CHUMSTICK RHYTHM
 
 > A rhythm game you play by **flowing the two analog sticks** of a DualSense / DualShock
-> controller in time with the music. Left stick drives the **left speaker**, right stick the
+> controller in time with the music. Left stick drives the **left mouth**, right stick the
 > **right**. Each stick is an **absolute cursor inside a disc**, so scoring is *continuous and
 > presence-based*: **be on** a note as it crosses, **trace** the lines that sweep around the rim,
 > and **spin** to fill a gauge. Modifier buttons add variation.
 >
-> **Theme: a front-facing stereo on the sea.** The two rings are the stereo's **left and right
-> speakers** (cyan L, Grooveshark-blue R), each with a real **thumbstick at its hub** that tracks
-> your stick and leaves a glowing **trail** of the line you're drawing. A shark cruises the blue
-> sky behind. Calm and flowy over a dark stage — deliberately *not* in-your-face neon.
+> **Theme: underwater Jaws.** A deep-ocean gradient (bright surface → deep dark) with sunlight
+> god-rays, bubbles, a rising open-jaws **shark**, a cruising **fin** and floating **barrels**. The
+> two rings are **shark mouths** (gullet, red gums, a ring of inward teeth) with a per-side glow
+> (**cyan L, orange R**, kept distinct so you can tell the sides). The aim cursor is the shark's
+> **tongue** licking out from each throat and leaving a glowing **trail**; the notes are **fish**
+> swimming in to be eaten. Title set in the **Jaws font**, blood-red.
 >
-> *(History: this started as a discrete "flick to the beat" game with a boombox/3D theme. Both
-> were dropped — flicks played clunky, so the input model became continuous flow; see §3.)*
+> *(History: this started as a discrete "flick to the beat" game; later a stereo/boombox/3D theme.
+> All were dropped — flicks played clunky, so the input model became continuous flow (see §3), and
+> the stereo theme gave way to the Jaws look.)*
 
 ---
 
@@ -45,7 +48,7 @@ novel space.
    discrete flick — the stick's **absolute position over time** is the note hit. Where you point,
    how you trace, and how you spin all carry meaning; you're rewarded for *being on it*, not for
    snapping. This is what makes it feel fluid instead of clunky.
-2. **Two-hand polyrhythm of lines.** Left and right speakers can demand different headings, traces
+2. **Two-hand polyrhythm of lines.** Left and right mouths can demand different headings, traces
    and spins on different subdivisions, so you're drawing a two-limb pattern of moving lines —
    closer to conducting/drawing than to tapping.
 3. **Native controller, zero install.** Runs in any browser via the Gamepad API; the DualSense
@@ -57,9 +60,9 @@ novel space.
 
 ## 3. Core mechanics — the flow model
 
-### Speakers & sticks
-- **Left speaker** ← left stick (`axes[0]` = X, `axes[1]` = Y).
-- **Right speaker** ← right stick (`axes[2..]`, with DualSense's non-standard layout handled).
+### Mouths & sticks
+- **Left mouth** ← left stick (`axes[0]` = X, `axes[1]` = Y).
+- **Right mouth** ← right stick (`axes[2..]`, with DualSense's non-standard layout handled).
 - A note's target is a **continuous angle** on the rim (0=right, 90=down, …), not one of 8 slots.
   You point *within a forgiving arc* of it — flow over precision.
 
@@ -157,10 +160,14 @@ JSON. See `beatmaps/raise-your-weapon.json` and the README for the full spec.
 
 **Landed:** continuous **flow** input (presence/coverage, no discrete flick), **hold / slide /
 spin** note types, a stick **trail**, miss-glitches-the-music audio, onset auto-charting that
-emits flow, and a synth groove when no audio file is present.
+emits flow, a synth groove when no audio file is present, **DualSense rumble haptics** (crisp on a
+hit, heavy buzz on a miss, soft hum while you ride a sustain, double-pulse on a combo milestone;
+intensity in Settings), **difficulty tiers** (Easy thins taps + widens arcs/windows · Normal is the
+authored chart · Hard tightens both; leaderboards are kept per song *and* tier), and a
+re-choreographed base chart with deliberate phrase texture (taps/slides/holds/spins + accent mods).
 
 **Still future:**
-- Haptics / adaptive triggers (DualSense exposes these only partially to the browser).
-- Difficulty tiers, online leaderboards, replay export, a chart-editor UI, song library management.
+- Adaptive triggers (the browser Gamepad API doesn't expose DualSense trigger effects yet).
+- Online leaderboards, replay export, a chart-editor UI, song library management.
 - Calibration (audio/video offset), per-stick sensitivity settings.
 - Lane-based "stream" sections and boss-style intensity ramps.

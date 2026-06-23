@@ -10,7 +10,17 @@ import { generateBeatmap, chartToJSON } from './beatgen.js';
 const LEAD_IN = 3.0; // seconds of "3..2..1" count-in before the music
 
 const SETTINGS_KEY = 'chumstick.settings';
-const SETTINGS_DEFAULTS = { music: 0.9, sfx: 0.5, offsetMs: 0, noteSpeed: 1.8 };
+const SETTINGS_DEFAULTS = { music: 0.9, sfx: 0.5, offsetMs: 0, noteSpeed: 1.8, haptics: 0.8, difficulty: 'normal' };
+
+// Difficulty tiers. The base chart is the "Normal" reference; Easy thins out the taps and widens
+// the hit arcs / timing windows (more forgiving), Hard keeps every note but tightens both so it
+// demands real precision. `arcScale`/`winScale` multiply the base values in scoring + render.
+const DIFFICULTIES = {
+  easy:   { key: 'easy',   label: 'Easy',   keepTaps: 0.5, arcScale: 1.30, winScale: 1.60 },
+  normal: { key: 'normal', label: 'Normal', keepTaps: 1.0, arcScale: 1.00, winScale: 1.00 },
+  hard:   { key: 'hard',   label: 'Hard',   keepTaps: 1.0, arcScale: 0.82, winScale: 0.78 },
+};
+const DIFFICULTY_ORDER = ['easy', 'normal', 'hard'];
 
 // Built-in charts (audio is loaded from assets/ if present, else metronome).
 const BUILTIN = [
@@ -36,9 +46,11 @@ class Game {
     this._demoDefl = { L: { v: { x: 0, y: 0 }, m: 0 }, R: { v: { x: 0, y: 0 }, m: 0 } };
 
     this.settings = this._loadSettings();
+    this.difficulty = DIFFICULTIES[this.settings.difficulty] ? this.settings.difficulty : 'normal';
     this._applySettings();
 
     this._buildSongList();
+    this._buildDifficulty();
     this._wireDom();
     this._wireSettings();
     this._unlockAudioOnGesture();
@@ -105,6 +117,32 @@ class Game {
     });
   }
 
+  // Difficulty segmented control on the song-select screen (applies to whatever song you start).
+  _buildDifficulty() {
+    this._diffBtns = [...document.querySelectorAll('#diff-select .diff-btn')];
+    for (const btn of this._diffBtns) {
+      btn.addEventListener('click', () => this._setDifficulty(btn.dataset.diff));
+      btn.addEventListener('mouseenter', () => { this.focusIndex = this._focusables().indexOf(btn); this._applyFocus(); });
+    }
+    this._syncDifficultyUI();
+  }
+
+  _setDifficulty(key) {
+    if (!DIFFICULTIES[key]) return;
+    this.difficulty = key;
+    this.settings.difficulty = key;
+    this._saveSettings();
+    this._syncDifficultyUI();
+    this.input.rumble(0.3, 0.5, 70);   // a tick so the choice is felt on the pad
+  }
+
+  _syncDifficultyUI() {
+    if (!this._diffBtns) return;
+    for (const b of this._diffBtns) b.classList.toggle('active', b.dataset.diff === this.difficulty);
+  }
+
+  _diffLabel() { return (DIFFICULTIES[this.difficulty] || DIFFICULTIES.normal).label; }
+
   _wireDom() {
     this._el('btn-start').addEventListener('click', () => this.showScreen('songselect'));
     this._el('btn-demo').addEventListener('click', () => this._watchDemo());
@@ -154,10 +192,11 @@ class Game {
     try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(this.settings)); } catch { /* private mode */ }
   }
 
-  /** Push the current settings into the live engine (volumes apply immediately). */
+  /** Push the current settings into the live engine (volumes + haptics apply immediately). */
   _applySettings() {
     this.audio.setMusicVolume(this.settings.music);
     this.audio.setSfxVolume(this.settings.sfx);
+    this.input.hapticScale = this.settings.haptics;
   }
 
   /** Reflect the current settings onto the slider widgets + value labels. */
@@ -167,10 +206,12 @@ class Game {
     this._el('set-sfx').value = Math.round(s.sfx * 100);
     this._el('set-offset').value = s.offsetMs;
     this._el('set-speed').value = Math.round(s.noteSpeed * 100);
+    this._el('set-haptics').value = Math.round(s.haptics * 100);
     this._el('set-music-val').textContent = Math.round(s.music * 100) + '%';
     this._el('set-sfx-val').textContent = Math.round(s.sfx * 100) + '%';
     this._el('set-offset-val').textContent = s.offsetMs + ' ms';
     this._el('set-speed-val').textContent = s.noteSpeed.toFixed(1) + ' s';
+    this._el('set-haptics-val').textContent = Math.round(s.haptics * 100) + '%';
   }
 
   _wireSettings() {
@@ -184,6 +225,7 @@ class Game {
     onInput('set-sfx', (v) => { this.settings.sfx = v / 100; });
     onInput('set-offset', (v) => { this.settings.offsetMs = v; });
     onInput('set-speed', (v) => { this.settings.noteSpeed = v / 100; });
+    onInput('set-haptics', (v) => { this.settings.haptics = v / 100; this.input.rumble(0.4, 0.6, 110); }); // buzz so you feel the level
   }
 
   _resetSettings() {
@@ -193,9 +235,11 @@ class Game {
     this._syncSettingsUI();
   }
 
-  // --- leaderboard (localStorage, per song) --------------------------------
+  // --- leaderboard (localStorage, per song + difficulty) -------------------
   _allScores() { try { return JSON.parse(localStorage.getItem('chumstick.scores') || '{}'); } catch { return {}; } }
   _loadScores(title) { return (this._allScores()[title] || []).slice().sort((a, b) => b.score - a.score); }
+  /** Storage key for a board — scores are kept separately per song AND difficulty. */
+  _lbKey(title) { return `${title} · ${this._diffLabel()}`; }
 
   _saveScore(title, entry) {
     const all = this._allScores();
@@ -220,15 +264,16 @@ class Game {
 
   _showLeaderboard() {
     const title = BUILTIN[0].title;
-    this._el('lb-song').textContent = title;
-    this._renderLeaderboard(this._el('lb-list'), title);
+    this._el('lb-song').textContent = `${title} · ${this._diffLabel()}`;
+    this._renderLeaderboard(this._el('lb-list'), this._lbKey(title));
     this.showScreen('leaderboard');
   }
 
   _clearLeaderboard() {
-    const all = this._allScores(); delete all[BUILTIN[0].title];
+    const key = this._lbKey(BUILTIN[0].title);
+    const all = this._allScores(); delete all[key];
     try { localStorage.setItem('chumstick.scores', JSON.stringify(all)); } catch { /* private mode */ }
-    this._renderLeaderboard(this._el('lb-list'), BUILTIN[0].title);
+    this._renderLeaderboard(this._el('lb-list'), key);
   }
 
   /** Adjust the focused slider by one step in `dir` (±1) — for D-pad / arrow control. */
@@ -330,12 +375,16 @@ class Game {
     this.chart = normalizeChart(this.currentRaw);
     this._applyChartSettings(this.chart);
     this.scorer.reset();
+    this._applyDifficulty(this.chart);
     this.renderer.effects = [];
     this.renderer.flickFx = [];
     this.renderer.pulse = 0;
     this.renderer.trail = { L: [], R: [] };
     this._ended = false;
     this._lastSongTime = null;
+    this._comboTier = 0;       // last crossed combo milestone (×25), for the banner/rumble flourish
+    this._lastSustainR = -1;   // song time of the last sustain-hum rumble (throttle)
+    this.input.demoMods = [];  // clear any attract-demo mod holds before a real run
     this._demoDefl = { L: { v: { x: 0, y: 0 }, m: 0 }, R: { v: { x: 0, y: 0 }, m: 0 } };
     this.audio.stop();
     this.audio.resume();
@@ -352,6 +401,24 @@ class Game {
     const off = (this.settings.offsetMs || 0) / 1000;   // +ms => notes later (you were hitting early)
     if (off) { for (const n of chart.notes) n.time += off; chart.duration += off; }
     chart.meta.approachTime = this.settings.noteSpeed;
+  }
+
+  /** Thin/forgive the chart for the selected difficulty, and set the scorer's arc/window scales. */
+  _applyDifficulty(chart) {
+    const d = DIFFICULTIES[this.difficulty] || DIFFICULTIES.normal;
+    if (d.keepTaps < 1) {
+      // drop a fraction of the taps (sustained notes are structural — always kept)
+      const keepEvery = Math.max(1, Math.round(1 / d.keepTaps));
+      let t = 0;
+      chart.notes = chart.notes.filter((n) => n.type !== 'tap' || (t++ % keepEvery === 0));
+      chart.notes.forEach((n, i) => { n.id = i; });
+      chart.duration = chart.notes.length ? Math.max(...chart.notes.map((n) => n.time + n.hold)) + 2.5 : 5;
+    }
+    chart.meta.arcScale = d.arcScale;
+    chart.meta.winScale = d.winScale;
+    chart.meta.difficulty = d.label;
+    this.scorer.arcScale = d.arcScale;
+    this.scorer.winScale = d.winScale;
   }
 
   // --- pause / quit / finish ----------------------------------------------
@@ -389,12 +456,12 @@ class Game {
       `<span class="c-perfect">${s.counts.perfect} PERFECT</span>` +
       `<span class="c-good">${s.counts.good} GOOD</span>` +
       `<span class="c-miss">${s.counts.miss} MISS</span>`;
-    // record to the leaderboard (skip the auto-play demo) and show the standings
-    const title = this.chart.meta.title;
-    const entry = { score: s.score, grade: s.grade, acc: s.accuracy, combo: s.maxCombo, date: new Date().toLocaleDateString() };
-    const rank = this.demo ? -1 : this._saveScore(title, entry);
+    // record to the leaderboard (per song + difficulty; skip the auto-play demo) and show standings
+    const key = this._lbKey(this.chart.meta.title);
+    const entry = { score: s.score, grade: s.grade, acc: s.accuracy, combo: s.maxCombo, diff: this._diffLabel(), date: new Date().toLocaleDateString() };
+    const rank = this.demo ? -1 : this._saveScore(key, entry);
     this._el('res-newbest').classList.toggle('hidden', rank !== 0);
-    this._renderLeaderboard(this._el('res-leaderboard'), title, this.demo ? null : entry.score);
+    this._renderLeaderboard(this._el('res-leaderboard'), key, this.demo ? null : entry.score);
     this.showScreen('results');
   }
 
@@ -403,14 +470,16 @@ class Game {
   // approaching note, parks in the arc for taps/holds, traces the moving line of a slide, and
   // whirls around for a spinner. Same presence-based scoring then "plays" it perfectly.
   _demoAutoplay(songTime) {
+    const mods = [];
     for (const ring of ['L', 'R']) {
       const tgt = this._demoStick(ring, songTime);
       const d = this._demoDefl[ring];
-      if (tgt) { d.v = { x: tgt.x, y: tgt.y }; d.m = tgt.mag; }
+      if (tgt) { d.v = { x: tgt.x, y: tgt.y }; d.m = tgt.mag; if (tgt.mod) mods.push(tgt.mod); }
       else { d.m *= 0.82; }
       const side = ring === 'L' ? 'left' : 'right';
       this.input[side] = { x: d.v.x * d.m, y: d.v.y * d.m, mag: d.m };
     }
+    this.input.demoMods = mods;   // so the auto-play also satisfies modifier-button notes
   }
 
   /** Where the demo should aim a stick right now: {x,y,mag} unit-ish vector, or null to relax. */
@@ -429,7 +498,14 @@ class Game {
     const v = angleVec(a);
     // full deflection inside the window, easing in as the note approaches
     const mag = bestDist <= 0.16 ? 0.94 : Math.max(0.3, 0.94 - (bestDist - 0.16) * 1.1);
-    return { x: v.x, y: v.y, mag };
+    return { x: v.x, y: v.y, mag, mod: bestDist <= 0.2 ? best.mod : null };
+  }
+
+  /** True if a sustained note (hold/slide/spin) is being satisfied this frame — drives the hum. */
+  _anySustainLit() {
+    if (!this.chart) return false;
+    for (const n of this.chart.notes) if (n.lit && !n.judged && n.type !== 'tap') return true;
+    return false;
   }
 
   _updateHud(songTime) {
@@ -566,8 +642,15 @@ class Game {
       for (const ev of this.scorer.takeEvents()) {
         this.renderer.addEffect(ev);
         if (ev.judgement === 'miss') this.audio.glitch();   // Guitar-Hero: miss glitches the mix
+        if (!this.demo) this.input.rumbleCue(ev.judgement); // controller IS the hit feedback (hits are silent)
         this._flashJudge(ev.judgement);
       }
+      // combo milestones every 25: a banner flourish + a double-pulse rumble
+      const tier = Math.floor(this.scorer.combo / 25);
+      if (tier > this._comboTier) { this.renderer.showBanner(this.scorer.combo + ' COMBO'); if (!this.demo) this.input.rumbleCue('milestone'); }
+      this._comboTier = tier;
+      // soft hum while you're riding a hold/slide/spin (throttled)
+      if (!this.demo && songTime - this._lastSustainR > 0.09 && this._anySustainLit()) { this.input.rumbleCue('sustain'); this._lastSustainR = songTime; }
       this._updateHud(songTime);
       if (songTime > this.chart.duration) {
         if (this.demo) this._startChart();                  // loop the attract demo

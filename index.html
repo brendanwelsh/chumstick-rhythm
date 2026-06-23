@@ -84,6 +84,12 @@
   <!-- ============ SONG SELECT ============ -->
   <section id="songselect" class="screen hidden">
     <h2>SELECT TRACK</h2>
+    <div id="diff-select" class="diff-row" role="group" aria-label="Difficulty">
+      <span class="diff-label">DIFFICULTY</span>
+      <button class="diff-btn" data-diff="easy">Easy</button>
+      <button class="diff-btn" data-diff="normal">Normal</button>
+      <button class="diff-btn" data-diff="hard">Hard</button>
+    </div>
     <div id="song-list" class="list"></div>
     <div class="row">
       <button id="btn-custom">＋ Load custom track</button>
@@ -137,6 +143,11 @@
         <label for="set-speed">Note speed <small>(approach time)</small></label>
         <input id="set-speed" type="range" min="100" max="320" step="10" value="180" />
         <span class="set-val" id="set-speed-val">1.8 s</span>
+      </div>
+      <div class="set-row">
+        <label for="set-haptics">Controller rumble <small>(haptic hit feedback)</small></label>
+        <input id="set-haptics" type="range" min="0" max="100" step="5" value="80" />
+        <span class="set-val" id="set-haptics-val">80%</span>
       </div>
       <p class="hint">Use the <b>D-pad ↑↓</b> to pick a setting and <b>←→</b> to adjust (or drag with the mouse). Saved automatically.</p>
       <div class="row">

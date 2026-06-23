@@ -233,6 +233,14 @@ button.big {
 .song-title { font-size: 18px; font-weight: 800; }
 .song-sub { font-size: 13px; color: var(--dim); letter-spacing: 0.08em; }
 
+/* ---------- Difficulty selector ---------- */
+.diff-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: center; margin-bottom: 6px; }
+.diff-label { font-size: 12px; letter-spacing: 0.18em; color: var(--dim); font-weight: 700; }
+.diff-btn { padding: 8px 22px; border-radius: 999px; font-size: 14px; }
+.diff-btn.active { color: #04121f; background: var(--l); border-color: var(--l); box-shadow: 0 0 22px rgba(47,224,255,0.45); }
+.diff-btn[data-diff="easy"].active { background: var(--green); border-color: var(--green); box-shadow: 0 0 22px rgba(155,255,138,0.45); }
+.diff-btn[data-diff="hard"].active { color: #fff; background: var(--blood); border-color: var(--blood); box-shadow: 0 0 22px rgba(196,32,32,0.5); }
+
 /* ---------- Custom form ---------- */
 .form { display: flex; flex-direction: column; gap: 16px; width: min(560px, 92vw); text-align: left; }
 .form label { display: flex; flex-direction: column; gap: 6px; font-weight: 700; }

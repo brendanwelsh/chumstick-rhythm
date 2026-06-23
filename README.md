@@ -1,18 +1,18 @@
 # 🦈 CHUMSTICK RHYTHM
 
 > A **dual-analog-stick rhythm game** for the DualSense / DualShock — a play on *thumbstick*
-> rhythm. It's a front-facing **stereo**: two speakers, each with a real analog **thumbstick in
-> the centre**. Each stick is an **absolute cursor inside a disc**, so it's about **flow, not
-> taps**: *be on* a note as it crosses, **trace the lines** that sweep around the rim, and **spin**
-> to fill a gauge. Keep up and the song plays clean — **slip and the audio glitches**, Guitar-Hero
-> style. Grooveshark-blue, with a shark cruising the sky. Pure **Web Audio + Canvas**, no plugins,
-> runs in a browser tab.
+> rhythm. The two rings are **shark mouths**; you swim glowing **fish** (the notes) into them. Each
+> stick is an **absolute cursor inside a disc**, so it's about **flow, not taps**: *be on* a note as
+> it crosses, **trace the lines** that sweep around the rim, and **spin** to fill a gauge. Keep up
+> and the song plays clean — **slip and the audio glitches**, Guitar-Hero style. An underwater
+> **Jaws** stage: god-rays, bubbles, a rising shark and floating barrels, with the controller
+> rumbling on every hit. Pure **Web Audio + Canvas**, no plugins, runs in a browser tab.
 
 <p align="center">
-  <img src="docs/demo.gif" width="860" alt="Demo — notes sweep around each speaker, the thumbsticks flick to hit them, combo climbs, a shark swims the sky">
+  <img src="docs/demo.gif" width="860" alt="Demo — fish swim toward each shark mouth, the sticks flow to eat them, combo climbs, a shark rises from the deep">
 </p>
 
-<p align="center"><sub>Auto-play demo: notes ride in around the speakers, the on-screen <b>thumbsticks flick to hit them</b>, combo climbs — and a shark cruises behind.</sub></p>
+<p align="center"><sub>Auto-play demo: fish swim in toward the two <b>shark mouths</b>, the sticks flow to eat them on the beat, combo climbs — and a shark rises from the deep.</sub></p>
 
 ---
 
@@ -27,7 +27,7 @@ as what it physically is: an **absolute analog position** inside a disc. So scor
 - **slides** — a target sweeps along the rim; **trace the line** with the stick (the staple).
 - **spinners** — *rotate* the stick to fill a gauge (osu-style).
 
-Two hands, two speakers, near-continuous motion. The clever bit is the audio: the track just
+Two hands, two shark mouths, near-continuous motion. The clever bit is the audio: the track just
 **plays through**. Keep up and it stays clean — **slip and the mix stutters, pitch-bends and
 buzzes** for a beat. The song is the reward and the punishment.
 
@@ -49,9 +49,13 @@ Open **http://localhost:8000**, then:
 
 1. **Click** once to enable sound.
 2. Plug in / pair a **DualSense** and **press a button to wake it** — browsers hide a gamepad
-   until you do. The splash is a live **controller tester**: move the sticks and watch them on the
-   speakers; the L2/R2 bars fill as you pull the triggers.
+   until you do. The splash is a live **controller tester** (a real DS5 skin) plus a **stick-drift
+   readout**: move the sticks and buttons and watch them light up; the L2/R2 bars fill as you pull.
 3. **Pull L2 + R2 together to start.**
+
+> **browse songs** lets you pick a **difficulty** (Easy / Normal / Hard) before a track — Easy thins
+> the chart and widens the hit windows, Hard tightens them. Scores are kept per song *and* tier.
+> **⚙ settings** has music/SFX volume, audio offset, note speed, and **controller rumble** intensity.
 
 > Just want to watch? Hit **▶ watch demo** for an attract-mode auto-play (that's the GIF above).
 
@@ -61,8 +65,8 @@ only confirms/cancels menus.
 ### Controls
 | Input | Action |
 | --- | --- |
-| **Left stick** | Ride **left-speaker** notes — point into the note's **arc** (a forgiving range, not an exact spot) |
-| **Right stick** | Ride **right-speaker** notes |
+| **Left stick** | Ride **left-mouth** notes — point into the note's **arc** (a forgiving range, not an exact spot) |
+| **Right stick** | Ride **right-mouth** notes |
 | **Taps** | Just *be in the arc* as the note crosses — no timed press |
 | **Holds** | Park the stick in the arc and keep it there |
 | **Slides** | Trace the moving line as it sweeps around the rim |
@@ -135,12 +139,12 @@ friendly.
 
 ```
 index.html · styles.css
-src/        ES modules — audio (clock + groove + glitch), input (gamepad position),
-            chart (note types + target math), scoring (presence/coverage), render (the stereo +
-            stick trail), beatgen (auto-charting), main
+src/        ES modules — audio (clock + groove + glitch), input (gamepad position + haptics),
+            chart (note types + target math), scoring (presence/coverage + difficulty scales),
+            render (the underwater Jaws stage + stick trail), beatgen (auto-charting), main
 beatmaps/   committed chart JSON (no audio)
-scripts/    flowify (base-chart builder) + headless node tests (sim, render smoke)
-brand/      the chum logo
+scripts/    flowify / recharter (base-chart builders) + headless node tests (sim, render smoke)
+brand/      the chum logo, Jaws/Anton title fonts, shark/boat/barrel art, DS5 controller skin
 assets/     drop local audio here (gitignored)
 ```
 

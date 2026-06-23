@@ -24,13 +24,17 @@ export const HOLD_ARC = 0.95;           // ±~54°
 export const SLIDE_ARC = 1.05;          // ±~60° (the line is moving — be forgiving)
 export const PRESENCE_MAG = 0.42;       // stick must be deflected at least this much to "point"
 
-const TAP_WIN = WINDOWS.good + 0.02;    // half-window a tap is evaluable around its time
-
 /** Shortest absolute angle between two headings (radians, 0..π). */
 function angleGap(a, b) { return Math.abs(wrapPi(a - b)); }
 
 export class Scorer {
-  constructor() { this.reset(); }
+  constructor() {
+    // Difficulty profile: multiplies the base arcs/timing-windows. 1 = Normal. Easy widens both
+    // (>1, more forgiving); Hard tightens them (<1, more precise). Set by main before each chart.
+    this.arcScale = 1;
+    this.winScale = 1;
+    this.reset();
+  }
 
   reset() {
     this.score = 0;
@@ -82,6 +86,12 @@ export class Scorer {
    * passes. `dt` is the elapsed song-seconds since last frame (for coverage accumulation).
    */
   update(notes, input, songTime, dt) {
+    // Per-difficulty effective arcs/windows (scaled off the base constants).
+    const perfWin = WINDOWS.perfect * this.winScale;
+    const tapWin = WINDOWS.good * this.winScale + 0.02;   // half-window a tap is evaluable around its time
+    const tapArc = TAP_ARC * this.arcScale;
+    const holdArc = HOLD_ARC * this.arcScale;
+    const slideArc = SLIDE_ARC * this.arcScale;
     for (const n of notes) {
       if (n.judged) continue;
       n.lit = false;
@@ -91,16 +101,16 @@ export class Scorer {
       const t0 = n.time, t1 = n.time + n.hold;
 
       if (n.type === 'tap') {
-        if (songTime < t0 - TAP_WIN) continue;
+        if (songTime < t0 - tapWin) continue;
         const err = songTime - t0;
         const modOk = n.mod ? input.heldMods().includes(n.mod) : true;
-        if (engaged && modOk && angleGap(sa, n.angle) <= TAP_ARC) {
+        if (engaged && modOk && angleGap(sa, n.angle) <= tapArc) {
           n.lit = true;
           if (n.bestErr == null || Math.abs(err) < Math.abs(n.bestErr)) n.bestErr = err;
-          if (Math.abs(err) <= WINDOWS.perfect) { this._resolve(n, 'perfect', songTime); continue; }
+          if (Math.abs(err) <= perfWin) { this._resolve(n, 'perfect', songTime); continue; }
         }
-        if (songTime > t0 + TAP_WIN) {
-          this._resolve(n, n.bestErr == null ? 'miss' : Math.abs(n.bestErr) <= WINDOWS.perfect ? 'perfect' : 'good', songTime);
+        if (songTime > t0 + tapWin) {
+          this._resolve(n, n.bestErr == null ? 'miss' : Math.abs(n.bestErr) <= perfWin ? 'perfect' : 'good', songTime);
         }
         continue;
       }
@@ -125,7 +135,7 @@ export class Scorer {
       // hold or slide: accrue on-target time against a (possibly moving) target angle
       if (songTime >= t0 && songTime <= t1) {
         const target = noteTargetAngle(n, songTime);
-        const arc = n.type === 'slide' ? SLIDE_ARC : HOLD_ARC;
+        const arc = n.type === 'slide' ? slideArc : holdArc;
         const modOk = n.mod ? input.heldMods().includes(n.mod) : true;
         if (engaged && modOk && angleGap(sa, target) <= arc) {
           n.lit = true;
