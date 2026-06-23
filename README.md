@@ -39,18 +39,15 @@ buzzes** for a beat. The song is the reward and the punishment.
 
 ## Play it
 
-It needs a real `http://` origin (Gamepad API + ES modules), so serve the folder:
+### ▶ [**Play it now — brendanwelsh.github.io/chumstick-rhythm**](https://brendanwelsh.github.io/chumstick-rhythm/)
 
-```bash
-python -m http.server 8001      # …or:  npx serve .   (8000 is chumball's port)
-```
-
-Open **http://localhost:8001**, then:
+Runs in any Chromium browser (Chrome / Edge) — nothing to install. You just need a **DualSense /
+DualShock** (or any analog-stick gamepad) connected. Then:
 
 1. **Click** once to enable sound.
-2. Plug in / pair a **DualSense** and **press a button to wake it** — browsers hide a gamepad
-   until you do. The splash is a live **controller tester** (a real DS5 skin) plus a **stick-drift
-   readout**: move the sticks and buttons and watch them light up; the L2/R2 bars fill as you pull.
+2. **Press a button** on the controller to wake it — browsers hide a gamepad until you do. The
+   splash is a live **controller tester** (a real DS5 skin) plus a **stick-drift readout**: move the
+   sticks and buttons and watch them light up; the L2/R2 bars fill as you pull.
 3. **Pull L2 + R2 together to start.**
 
 > **browse songs** lets you pick a **difficulty** (Easy / Normal / Hard) before a track — Easy thins
@@ -74,6 +71,19 @@ only confirms/cancels menus.
 | **L1 / R1 / face buttons** | Held for **modifier** notes |
 | **L2 + R2** | Start (on the splash) |
 | **Options / ✕** confirm · **◯ / Esc** | back / pause |
+
+<details>
+<summary><b>Run it yourself (offline / for development)</b></summary>
+
+The Gamepad API + ES modules need a real `http://` origin, so serve the folder (don't open the file
+directly):
+
+```bash
+python -m http.server 8001      # …or:  npx serve .   (8000 is chumball's port)
+```
+
+Then open **http://localhost:8001**.
+</details>
 
 ---
 
